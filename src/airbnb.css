@@ -1,0 +1,220 @@
+/* Airbnb-inspired styles (original look is not copied; this is an original, inspired layout) */
+.vh-header-placeholder{display:none}
+:root{
+  --vh-accent:#2e7d32; /* use app primary green */
+  --vh-muted:#767676;
+  --vh-header-height:64px;
+}
+/* make header fixed so it stays on top of the page */
+.vh-header{
+  position:fixed;
+  top:0;
+  left:0;
+  right:0;
+  height:var(--vh-header-height);
+  background:#fff;
+  border-bottom:1px solid #eee;
+  z-index:1400;
+}
+.vh-header-inner{max-width:1100px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;padding:10px 12px;}
+.vh-header-inner{box-sizing:border-box}
+.vh-logo-link{font-weight:700;color:var(--vh-accent);text-decoration:none;font-size:20px}
+.vh-search-wrap{flex:1;display:flex;justify-content:center;padding:0 20px}
+.vh-search{width:100%;max-width:520px}
+.vh-search-input{width:100%;padding:10px 14px;border-radius:22px;border:1px solid #e6e6e6}
+.vh-search-input--white{background:#fff;color:#333}
+.vh-nav{display:flex;gap:12px;align-items:center}
+.vh-nav-link{color:#333;text-decoration:none;padding:6px 8px;border-radius:6px}
+
+/* Host header styles */
+.vh-host-header{
+  background:#fff;
+  border-bottom:1px solid #eee;
+}
+.vh-host-nav{display:flex;gap:24px;align-items:center;margin-left:auto}
+.vh-host-nav-link{color:#333;text-decoration:none;padding:8px 12px;border-radius:6px;font-weight:500;transition:color .2s ease}
+.vh-host-nav-link:hover{color:var(--vh-accent)}
+
+.vh-hero{background-image:linear-gradient(rgba(0,0,0,0.18),rgba(0,0,0,0.18)),url('https://images.unsplash.com/photo-1528909514045-2fa4ac7a08ba?auto=format&fit=crop&w=1600&q=60');background-size:cover;background-position:center;color:#fff;padding:64px 0}
+.vh-hero-inner{max-width:1100px;margin:0 auto;text-align:left;padding:40px}
+.vh-hero h1{font-size:40px;margin:0 0 8px}
+.vh-hero p{margin:0 0 18px;opacity:0.95}
+.vh-hero-search input{padding:12px 16px;border-radius:24px;border:none;max-width:420px}
+
+.container{max-width:1100px;margin:30px auto;padding:0 16px}
+.vh-main h2{margin:6px 0 18px}
+.vh-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:18px}
+.vh-card{background:#fff;border-radius:10px;overflow:hidden;border:1px solid #eee;display:flex;flex-direction:column}
+.vh-card-media img{width:100%;height:180px;object-fit:cover;display:block}
+.vh-card{background:#fff;border-radius:10px;overflow:hidden;border:1px solid #eee;display:flex;flex-direction:column;transition:box-shadow .18s ease,transform .12s ease}
+.vh-card:hover{box-shadow:0 8px 20px rgba(0,0,0,0.08);transform:translateY(-4px)}
+.vh-card-link{color:inherit;text-decoration:none;display:block}
+.vh-card-body{padding:12px;display:flex;justify-content:space-between;align-items:center}
+.vh-card-title{font-size:16px;margin:0}
+.vh-card-sub{font-size:13px;color:var(--vh-muted);margin:4px 0 0}
+.vh-card-price{font-weight:700}
+.vh-card-rating{font-size:13px;color:#666}
+
+@media (max-width:900px){
+  .vh-hero h1{font-size:32px}
+}
+
+/* When header is used with a left drawer (host layout), overlay it above the drawer */
+.vh-header.vh-header--with-drawer{
+  margin-left: 0 !important;
+  width: 100% !important;
+}
+.vh-header.vh-header--with-drawer .vh-header-inner{
+  max-width:1100px;
+  /* add left padding so the inner header content lines up with main content when drawer is present */
+  padding-left: 280px;
+}
+
+/* push page content down so it is not hidden under the fixed header */
+html, body, #root {
+  height: 100%;
+}
+body {
+  padding-top: var(--vh-header-height);
+}
+
+/* Airbnb-style DatePicker */
+.react-datepicker__wrapper {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+
+.react-datepicker-popper {
+  z-index: 1000 !important;
+  position: fixed !important;
+  top: auto !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+}
+
+.react-datepicker {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+  border: none;
+  border-radius: 12px;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.15);
+  padding: 24px;
+  background: #fff;
+  width: auto;
+  position: absolute !important;
+  top: 100% !important;
+}
+
+.react-datepicker__header {
+  background: #fff;
+  border-bottom: none;
+  padding: 0;
+  border-radius: 0;
+}
+
+.react-datepicker__month-container {
+  width: auto;
+}
+
+.react-datepicker__month {
+  margin: 0 32px;
+  display: inline-block;
+}
+
+.react-datepicker__month + .react-datepicker__month {
+  margin-left: 32px;
+}
+
+.react-datepicker__month-text {
+  font-size: 16px;
+  font-weight: 600;
+  color: #222;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.react-datepicker__day-names {
+  display: flex;
+  justify-content: space-around;
+  margin-bottom: 8px;
+}
+
+.react-datepicker__day-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #718096;
+  width: 36px;
+  text-align: center;
+  margin: 0;
+}
+
+.react-datepicker__week {
+  display: flex;
+  justify-content: space-around;
+  margin-bottom: 8px;
+}
+
+.react-datepicker__day {
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: #222;
+  border-radius: 50%;
+  cursor: pointer;
+  margin: 0;
+  transition: all 0.2s ease;
+}
+
+.react-datepicker__day--selected,
+.react-datepicker__day--in-selecting-range {
+  background: #2e7d32;
+  color: #fff;
+  font-weight: 600;
+}
+
+.react-datepicker__day--in-range {
+  background: #c8e6c9;
+  color: #222;
+  border-radius: 0;
+}
+
+.react-datepicker__day--keyboard-selected {
+  background: none;
+  color: #222;
+}
+
+.react-datepicker__day:hover:not(.react-datepicker__day--disabled) {
+  background: #f0f0f0;
+  font-weight: 600;
+}
+
+.react-datepicker__day--disabled {
+  color: #cbd5e0;
+  cursor: not-allowed;
+}
+
+.react-datepicker__day--outside-month {
+  color: #cbd5e0;
+}
+
+.react-datepicker__navigation {
+  display: none;
+}
+
+@media (max-width:600px){
+  .vh-hero h1{font-size:28px}
+  .vh-card-media img{height:140px}
+  .vh-header-inner{padding:8px 10px}
+  .vh-search-wrap{padding:0 8px}
+  
+  .react-datepicker {
+    padding: 16px;
+  }
+  
+  .react-datepicker__month {
+    margin: 0 16px;
+  }
+}

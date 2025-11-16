@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+/* Minimal global reset to work nicely with Tailwind layout */
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* Make inline datepicker blend into its parent card in host listing wizard */
+.react-datepicker {
+  border: none;
+  box-shadow: none;
+  background-color: transparent;
+}
+
+.react-datepicker__month-container {
+  border-radius: 0;
+}

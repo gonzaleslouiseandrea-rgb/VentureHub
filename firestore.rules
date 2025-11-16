@@ -1,0 +1,185 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===== USERS (guest profiles) =====
+    // Docs keyed by auth uid
+    match /users/{userId} {
+      // Logged-in user can read their own profile
+      allow read: if request.auth != null && request.auth.uid == userId;
+
+      // Logged-in user can create their own profile
+      allow create: if request.auth != null && request.auth.uid == userId;
+
+      // Allow updates by the owner; also allow unauthenticated updates used by
+      // email verification / onboarding flows from the client.
+      allow update: if
+        (request.auth != null && request.auth.uid == userId) ||
+        (request.auth == null);
+
+      // No deletes from client
+      allow delete: if false;
+    }
+
+    // ===== HOSTS =====
+    // Docs keyed by host uid
+    match /hosts/{hostId} {
+      allow read, create, update: if request.auth != null && request.auth.uid == hostId;
+      allow delete: if false;
+    }
+
+    // ===== LISTINGS =====
+    // Each listing has hostId field
+    match /listings/{listingId} {
+      // Public browse
+      allow read: if true;
+
+      // Only the owner host can create / modify
+      allow create, update, delete: if request.auth != null &&
+        request.resource.data.hostId == request.auth.uid;
+    }
+
+    // ===== BOOKINGS =====
+    // booking has guestId and hostId
+    match /bookings/{bookingId} {
+      // Guest or host involved can read
+      allow read: if request.auth != null &&
+        (resource.data.guestId == request.auth.uid ||
+         resource.data.hostId == request.auth.uid);
+
+      // Guest creates a booking
+      allow create: if request.auth != null &&
+        request.resource.data.guestId == request.auth.uid;
+
+      // Guest or host can update/cancel
+      allow update, delete: if request.auth != null &&
+        (resource.data.guestId == request.auth.uid ||
+         resource.data.hostId == request.auth.uid);
+    }
+
+    // ===== REVIEWS =====
+    // review has authorId, listingId
+    match /reviews/{reviewId} {
+      allow read: if true;
+
+      allow create: if request.auth != null &&
+        request.resource.data.authorId == request.auth.uid;
+
+      allow update, delete: if request.auth != null &&
+        resource.data.authorId == request.auth.uid;
+    }
+
+    // ===== FAVORITES (guest wishlist) =====
+    // favorite has userId, listingId
+    match /favorites/{favoriteId} {
+      // User can read their own favorites
+      allow read: if request.auth != null &&
+        resource.data.userId == request.auth.uid;
+
+      // User can create their own favorite
+      allow create: if request.auth != null &&
+        request.resource.data.userId == request.auth.uid;
+
+      // User can delete their own favorite
+      allow delete: if request.auth != null &&
+        resource.data.userId == request.auth.uid;
+
+      // No updates
+      allow update: if false;
+    }
+
+    // ===== WISHLIST PREFERENCES =====
+    // Docs keyed by auth uid: wishlistPreferences/{userId}
+    match /wishlistPreferences/{userId} {
+      allow read, write: if request.auth != null &&
+        request.auth.uid == userId;
+    }
+
+    // ===== MESSAGES (guest <-> host) =====
+    // message has guestId, hostId, listingId, senderId, senderRole, text
+    match /messages/{messageId} {
+      // Guest or host involved can read
+      allow read: if request.auth != null &&
+        (resource.data.guestId == request.auth.uid ||
+         resource.data.hostId == request.auth.uid);
+
+      // Guest or host involved can create a message in their own conversation
+      allow create: if request.auth != null &&
+        (request.resource.data.guestId == request.auth.uid ||
+         request.resource.data.hostId == request.auth.uid);
+
+      // Guest or host can delete their own message
+      allow delete: if request.auth != null &&
+        (resource.data.guestId == request.auth.uid ||
+         resource.data.hostId == request.auth.uid);
+
+      // No general updates for now
+      allow update: if false;
+    }
+
+    // ===== PAYMENTS (server-managed) =====
+    match /payments/{paymentId} {
+      // Client can read if they are involved
+      allow read: if request.auth != null &&
+        (resource.data.guestId == request.auth.uid ||
+         resource.data.hostId == request.auth.uid);
+
+      // Writes only by backend (keep false from client)
+      allow write: if false;
+    }
+
+    // ===== REFUNDS =====
+    // refund has guestId, hostId, bookingId, listingId, status, amount, reason
+    match /refunds/{refundId} {
+      // Guest can create a refund request for their own booking
+      allow create: if request.auth != null &&
+        request.resource.data.guestId == request.auth.uid;
+
+      // Guest or host involved can read
+      allow read: if request.auth != null &&
+        (resource.data.guestId == request.auth.uid ||
+         resource.data.hostId == request.auth.uid);
+
+      // Host can update the refund (e.g. status approved/rejected)
+      allow update: if request.auth != null &&
+        request.auth.uid == resource.data.hostId;
+
+      // No deletes from client
+      allow delete: if false;
+    }
+
+    // ===== WALLETS =====
+    // One wallet per user: wallets/{userId}
+    match /wallets/{userId} {
+      // User can read and write only their own wallet
+      allow read, write: if request.auth != null &&
+        request.auth.uid == userId;
+    }
+
+    // ===== WALLET TRANSACTIONS =====
+    // walletTransactions/{txId} with userId field
+    match /walletTransactions/{txId} {
+      // User can read their own transactions
+      allow read: if request.auth != null &&
+        request.auth.uid == resource.data.userId;
+
+      // User can create their own transaction records (topups, spends)
+      allow create: if request.auth != null &&
+        request.resource.data.userId == request.auth.uid;
+
+      // No client updates/deletes
+      allow update, delete: if false;
+    }
+
+    // ===== ANALYTICS (admin / backend only) =====
+    match /analytics/{docId} {
+      allow read, write: if false;
+    }
+
+    // ===== FALLBACK: deny everything else =====
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
