@@ -698,6 +698,27 @@ export default function ListingDetailPage() {
                               dateFormat="MMM dd"
                               placeholderText={getDateRangeText()}
                               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-1 focus:ring-green-500 cursor-pointer bg-white text-sm"
+                              renderCustomHeader={(headerProps) => (
+                                <div className="flex items-center justify-between mb-2 px-1">
+                                  <button
+                                    type="button"
+                                    onClick={headerProps.decreaseMonth}
+                                    className="text-xs px-2 py-1 border border-gray-300 rounded-full bg-white hover:bg-gray-100"
+                                  >
+                                    Prev
+                                  </button>
+                                  <span className="text-sm font-semibold text-gray-800">
+                                    {headerProps.date.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={headerProps.increaseMonth}
+                                    className="text-xs px-2 py-1 border border-gray-300 rounded-full bg-white hover:bg-gray-100"
+                                  >
+                                    Next
+                                  </button>
+                                </div>
+                              )}
                             />
                           );
                         })()}

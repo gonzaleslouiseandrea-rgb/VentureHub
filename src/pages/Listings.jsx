@@ -771,17 +771,6 @@ export default function HostListingsPage() {
                       onChange={handleAvailabilityRangeChange}
                       startDate={availabilityDates[0]}
                       endDate={availabilityDates[1]}
-                      selectsRange
-                      inline
-                      minDate={new Date()}
-                      dateFormat="MMM dd"
-                      monthsShown={1}
-                    />
-                  </div>
-                  <p className="text-xs text-gray-500 mt-2">
-                    Guests can only book within this date range.
-                  </p>
-                </div>
               </>
             )}
 
