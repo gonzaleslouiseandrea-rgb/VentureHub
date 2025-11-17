@@ -494,7 +494,8 @@ export default function ListingDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 relative">
+    <>
+      <div className="min-h-screen bg-gray-50 relative">
       <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center">
           <button
@@ -975,6 +976,6 @@ export default function ListingDetailPage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
