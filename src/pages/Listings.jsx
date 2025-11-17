@@ -745,6 +745,24 @@ export default function HostListingsPage() {
                   />
                 </div>
 
+                <div className="mt-8 border border-gray-300 rounded-lg overflow-hidden h-64">
+                  <MapContainer
+                    center={markerPosition || [14.5995, 120.9842]}
+                    zoom={12}
+                    scrollWheelZoom={false}
+                    className="w-full h-full"
+                  >
+                    <TileLayer
+                      attribution="&copy; <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors"
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    />
+                    <LocationMarker
+                      markerPosition={markerPosition}
+                      setMarkerPosition={setMarkerPosition}
+                    />
+                  </MapContainer>
+                </div>
+
                 <div className="mt-8 w-full">
                   <p className="text-sm font-semibold mb-2">Availability range</p>
                   <div className="mt-2 inline-block border border-gray-300 rounded-md p-3 bg-white">
@@ -763,23 +781,6 @@ export default function HostListingsPage() {
                   <p className="text-xs text-gray-500 mt-2">
                     Guests can only book within this date range.
                   </p>
-                </div>
-                <div className="mt-96 border border-gray-300 rounded-lg overflow-hidden h-64">
-                  <MapContainer
-                    center={markerPosition || [14.5995, 120.9842]}
-                    zoom={12}
-                    scrollWheelZoom={false}
-                    className="w-full h-full"
-                  >
-                    <TileLayer
-                      attribution="&copy; <a href='https://www.openstreetmap.org/copyright'>OpenStreetMap</a> contributors"
-                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                    />
-                    <LocationMarker
-                      markerPosition={markerPosition}
-                      setMarkerPosition={setMarkerPosition}
-                    />
-                  </MapContainer>
                 </div>
               </>
             )}

@@ -7,6 +7,7 @@ import {
   Divider,
   Typography,
 } from '@mui/material';
+import { PayPalButtons } from '@paypal/react-paypal-js';
 import { useNavigate } from 'react-router-dom';
 import {
   collection,
@@ -38,6 +39,9 @@ export default function HostAccountPage() {
   const [subscriptionPrice, setSubscriptionPrice] = useState('');
   const [listingLimit, setListingLimit] = useState('');
   const [provider, setProvider] = useState('');
+  const [upgradePlanKey, setUpgradePlanKey] = useState('');
+  const [upgrading, setUpgrading] = useState(false);
+  const [upgradeMessage, setUpgradeMessage] = useState('');
 
   useEffect(() => {
     const loadHost = async () => {
@@ -105,6 +109,64 @@ export default function HostAccountPage() {
       return 'Unlimited listings';
     }
     return `${hostProfile.listingLimit} published listings`;
+  };
+
+  const planConfig = {
+    basic: { label: 'Basic Monthly – ₱299 / month (up to 3 listings)', price: 299, listingLimit: 3 },
+    pro: { label: 'Pro Monthly – ₱599 / month (up to 8 listings)', price: 599, listingLimit: 8 },
+    annual: { label: 'Annual Unlimited – ₱1,299 / year (unlimited listings)', price: 1299, listingLimit: null },
+  };
+
+  const detectCurrentPlanKey = () => {
+    const planText = (hostProfile?.subscriptionPlan || '').toLowerCase();
+    if (planText.includes('annual')) return 'annual';
+    if (planText.includes('pro')) return 'pro';
+    if (planText.includes('basic')) return 'basic';
+    return null;
+  };
+
+  const currentPlanKey = detectCurrentPlanKey();
+
+  const availableUpgradeOptions = () => {
+    if (!currentPlanKey) return ['basic', 'pro', 'annual'];
+    if (currentPlanKey === 'basic') return ['pro', 'annual'];
+    if (currentPlanKey === 'pro') return ['annual'];
+    return [];
+  };
+
+  const handleUpgradeApplied = async (planKey) => {
+    if (!user || !planConfig[planKey]) return;
+    try {
+      setUpgrading(true);
+      setUpgradeMessage('');
+
+      const meta = planConfig[planKey];
+      const ref = doc(db, 'hosts', user.uid);
+      await updateDoc(ref, {
+        subscriptionPlan: meta.label,
+        subscriptionPrice: meta.price,
+        listingLimit: meta.listingLimit,
+        updatedAt: serverTimestamp(),
+      });
+
+      setHostProfile((prev) => (prev ? {
+        ...prev,
+        subscriptionPlan: meta.label,
+        subscriptionPrice: meta.price,
+        listingLimit: meta.listingLimit,
+      } : prev));
+
+      setSubscriptionPlan(meta.label);
+      setSubscriptionPrice(String(meta.price));
+      setListingLimit(meta.listingLimit === null || meta.listingLimit === undefined ? '' : String(meta.listingLimit));
+      setUpgradeMessage('Your subscription plan has been updated.');
+      setUpgradePlanKey('');
+    } catch (err) {
+      setUpgradeMessage('Failed to update your subscription plan. Please contact support if this continues.');
+    } finally {
+      setUpgrading(false);
+      setTimeout(() => setUpgradeMessage(''), 5000);
+    }
   };
 
   const handleSaveProfile = async () => {
@@ -484,6 +546,101 @@ export default function HostAccountPage() {
                     View Host Bookings
                   </Button>
                 </Box>
+
+                <Divider sx={{ my: 4 }} />
+
+                <div>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">Upgrade plan</h3>
+                  <p className="text-sm text-gray-600 mb-3">
+                    Move to a higher subscription plan to increase your listing limits. Changes are applied after your PayPal subscription is approved.
+                  </p>
+
+                  {!hostProfile && (
+                    <p className="text-sm text-gray-600 mb-2">
+                      You need a host subscription profile before you can upgrade your plan.
+                    </p>
+                  )}
+
+                  {hostProfile && availableUpgradeOptions().length === 0 && (
+                    <p className="text-sm text-gray-600 mb-2">
+                      You are already on the highest available plan.
+                    </p>
+                  )}
+
+                  {hostProfile && availableUpgradeOptions().length > 0 && (
+                    <div className="space-y-3 max-w-md">
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Current plan</p>
+                        <p className="text-sm text-gray-900">{hostProfile.subscriptionPlan || '—'}</p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Choose an upgrade</p>
+                        <div className="space-y-2">
+                          {availableUpgradeOptions().map((key) => {
+                            const meta = planConfig[key];
+                            const checked = upgradePlanKey === key;
+                            return (
+                              <button
+                                key={key}
+                                type="button"
+                                disabled={upgrading}
+                                onClick={() => setUpgradePlanKey(key)}
+                                className={`w-full text-left px-3 py-2 border rounded-md text-sm transition ${
+                                  checked
+                                    ? 'border-green-600 bg-green-50 text-green-800'
+                                    : 'border-gray-300 bg-white text-gray-800 hover:bg-gray-50'
+                                }`}
+                              >
+                                <span className="font-semibold block">{meta.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {upgradePlanKey && (
+                        <div className="mt-2">
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Confirm with PayPal</p>
+                          <div className="max-w-xs">
+                            <PayPalButtons
+                              style={{ layout: 'horizontal', shape: 'pill' }}
+                              disabled={upgrading}
+                              createSubscription={(data, actions) => {
+                                const planIds = {
+                                  basic: import.meta.env.VITE_PAYPAL_PLAN_BASIC,
+                                  pro: import.meta.env.VITE_PAYPAL_PLAN_PRO,
+                                  annual: import.meta.env.VITE_PAYPAL_PLAN_ANNUAL,
+                                };
+                                const rawPlanId = planIds[upgradePlanKey];
+                                const planId = typeof rawPlanId === 'string' ? rawPlanId.trim() : rawPlanId;
+                                if (!planId) {
+                                  // eslint-disable-next-line no-alert
+                                  alert('PayPal plan ID is not configured for this subscription.');
+                                  return Promise.reject(new Error('Missing PayPal plan ID'));
+                                }
+                                return actions.subscription.create({
+                                  plan_id: planId,
+                                });
+                              }}
+                              onApprove={async () => {
+                                await handleUpgradeApplied(upgradePlanKey);
+                              }}
+                              onError={() => {
+                                // eslint-disable-next-line no-alert
+                                alert('There was an error processing your PayPal subscription. Please try again.');
+                              }}
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {upgradeMessage && (
+                        <p className="mt-2 text-xs text-gray-700">{upgradeMessage}</p>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 
