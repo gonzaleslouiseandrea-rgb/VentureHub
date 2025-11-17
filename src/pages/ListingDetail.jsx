@@ -663,30 +663,32 @@ export default function ListingDetailPage() {
 
               <div className="space-y-3 mb-4">
                 <div className="relative">
-                  <label className="block text-sm text-gray-600 mb-1">Dates</label>
                   {(() => {
-                    const { min, max } = getAvailabilityBounds();
+                    const nights = calculateNights();
+                    const subtotal = listing.rate * nights;
+                    const effectiveDiscount = discountApplied ? (listing.discount || 0) : 0;
+                    const discountAmount = Math.round((subtotal * effectiveDiscount) / 100);
+                    const total = subtotal - discountAmount;
                     return (
-                  <DatePicker
-                    selected={checkIn}
-                    onChange={handleDateRangeChange}
-                    startDate={checkIn}
-                    endDate={checkOut}
-                    selectsRange
-                    placeholderText={getDateRangeText()}
-                    dateFormat="MMM dd"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 text-sm font-medium cursor-pointer"
-                    monthsShown={2}
-                    minDate={min}
-                    maxDate={max}
-                    shouldCloseOnScroll
-                    popperPlacement="top-start"
-                  />
+                      <>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">₱{listing.rate} × {nights} night{nights !== 1 ? 's' : ''}</span>
+                          <span>₱{subtotal.toLocaleString()}</span>
+                        </div>
+                        {effectiveDiscount > 0 && (
+                          <div className="flex justify-between text-red-600">
+                            <span>Discount ({effectiveDiscount}%)</span>
+                            <span>-₱{discountAmount.toLocaleString()}</span>
+                          </div>
+                        )}
+                        <div className="border-t border-gray-300 pt-2 flex justify-between font-semibold">
+                          <span>Total</span>
+                          <span>₱{total.toLocaleString()}</span>
+                        </div>
+                      </>
                     );
                   })()}
                 </div>
-                <div>
-                  <label className="block text-sm text-gray-600 mb-1">Guests</label>
                   <input
                     type="number"
                     value={guests}
@@ -789,53 +791,6 @@ export default function ListingDetailPage() {
 
               {showPayment && paypalClientId && (
                 <div className="mt-4">
-                  <div className="mb-3 text-sm">
-                    <p className="font-semibold mb-1">Choose payment method</p>
-                    <div className="flex flex-col gap-1">
-                      <label className="inline-flex items-center gap-2 text-gray-800">
-                        <input
-                          type="radio"
-                          name="payment-method"
-                          value="paypal"
-                          checked={paymentMethod === 'paypal'}
-                          onChange={() => setPaymentMethod('paypal')}
-                        />
-                        <span>Pay with PayPal</span>
-                      </label>
-                      <label className="inline-flex items-center gap-2 text-gray-800">
-                        <input
-                          type="radio"
-                          name="payment-method"
-                          value="wallet"
-                          checked={paymentMethod === 'wallet'}
-                          disabled={walletLoading || walletBalance < computeBookingTotal()}
-                          onChange={() => setPaymentMethod('wallet')}
-                        />
-                        <span>
-                          Pay with Wallet
-                          {' '}
-                          <span className="text-xs text-gray-500">
-                            (Balance: ₱{walletBalance.toFixed(2)})
-                          </span>
-                        </span>
-                      </label>
-                      {paymentMethod === 'wallet' && walletBalance < computeBookingTotal() && (
-                        <p className="text-xs text-red-600">Insufficient wallet balance for this booking.</p>
-                      )}
-                    </div>
-                  </div>
-
-                  {paymentMethod === 'wallet' ? (
-                    <button
-                      type="button"
-                      onClick={handleWalletPayment}
-                      disabled={isProcessing || walletLoading || walletBalance < computeBookingTotal()}
-                      className="w-full mb-2 px-4 py-2 bg-green-600 text-white rounded-md font-semibold hover:bg-green-700 disabled:opacity-60"
-                    >
-                      {isProcessing ? 'Processing...' : 'Confirm payment with wallet'}
-                    </button>
-                  ) : null}
-
                   <PayPalScriptProvider
                     options={{
                       clientId: paypalClientId,
@@ -843,8 +798,7 @@ export default function ListingDetailPage() {
                       currency: 'PHP',
                     }}
                   >
-                    {paymentMethod === 'paypal' && (
-                      <PayPalButtons
+                    <PayPalButtons
                       style={{ layout: 'vertical', shape: 'pill' }}
                       disabled={isProcessing}
                       forceReRender={[computeBookingTotal(), discountApplied, promoCode]}
@@ -919,7 +873,6 @@ export default function ListingDetailPage() {
                         setIsProcessing(false);
                       }}
                     />
-                    )}
                   </PayPalScriptProvider>
                 </div>
               )}

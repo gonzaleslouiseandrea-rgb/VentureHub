@@ -26,9 +26,11 @@ import {
 import { collection, doc, serverTimestamp, setDoc, addDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase.js';
 import { sendVerificationOTP } from '../utils/emailService.js';
+import { useToast } from '../components/ToastProvider.jsx';
 import { PayPalButtons } from '@paypal/react-paypal-js';
 
 export default function HostRegisterPage() {
+  const { showToast } = useToast();
   const [activeStep, setActiveStep] = useState(0);
   const [form, setForm] = useState({
     name: '',
@@ -81,6 +83,7 @@ export default function HostRegisterPage() {
       try {
         await sendVerificationOTP(cred.user.email, cred.user.displayName || cred.user.email, verificationOTP);
         setSuccess('Signed in with Google. Please complete the steps and PayPal subscription to finish host registration. A verification OTP has been sent to your email.');
+        showToast('Verification email sent. Please check your inbox for the OTP.', 'success');
       } catch (emailError) {
         // eslint-disable-next-line no-console
         console.error('Email sending error (Google host registration):', emailError);

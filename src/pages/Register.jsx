@@ -5,13 +5,16 @@ import {
   updateProfile,
   GoogleAuthProvider,
   signInWithPopup,
+  signOut,
 } from 'firebase/auth';
 import { doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase.js';
 import { sendVerificationOTP } from '../utils/emailService.js';
+import { useToast } from '../components/ToastProvider.jsx';
 
 export default function RegisterPage() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -57,10 +60,19 @@ export default function RegisterPage() {
       try {
         await sendVerificationOTP(email, displayName, verificationOTP);
         setSuccess('Registration with Google successful. A verification OTP has been sent to your inbox.');
+        showToast('Verification email sent. Please check your inbox for the OTP.', 'success');
       } catch (emailError) {
         // eslint-disable-next-line no-console
         console.error('Email sending error (Google registration):', emailError);
         setSuccess('Google sign-in succeeded, but there was an issue sending the verification email. Please contact support.');
+      }
+
+      // Sign out so the new user is not treated as logged in until they verify
+      try {
+        await signOut(auth);
+      } catch (signOutError) {
+        // eslint-disable-next-line no-console
+        console.error('Error signing out after Google registration', signOutError);
       }
 
       navigate('/verify-otp', {
@@ -114,6 +126,7 @@ export default function RegisterPage() {
       try {
         await sendVerificationOTP(form.email, form.name, verificationOTP);
         setSuccess('Guest registration successful. A verification OTP has been sent to your inbox.');
+        showToast('Verification email sent. Please check your inbox for the OTP.', 'success');
       } catch (emailError) {
         // eslint-disable-next-line no-console
         console.error('Email sending error:', emailError);
@@ -124,6 +137,14 @@ export default function RegisterPage() {
         ...prev,
         password: '',
       }));
+
+      // Sign out so the new user is not treated as logged in until they verify
+      try {
+        await signOut(auth);
+      } catch (signOutError) {
+        // eslint-disable-next-line no-console
+        console.error('Error signing out after registration', signOutError);
+      }
       navigate('/verify-otp', {
         state: {
           email: form.email,
