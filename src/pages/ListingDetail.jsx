@@ -678,6 +678,32 @@ export default function ListingDetailPage() {
                   </div>
 
                   <div className="space-y-3 mb-4">
+                    {/* Date range picker for guest booking */}
+                    <div>
+                      <label className="block text-sm text-gray-600 mb-1">
+                        Dates
+                      </label>
+                      <div className="w-full">
+                        {(() => {
+                          const { min, max } = getAvailabilityBounds();
+                          return (
+                            <DatePicker
+                              selected={checkIn}
+                              onChange={handleDateRangeChange}
+                              startDate={checkIn}
+                              endDate={checkOut}
+                              selectsRange
+                              minDate={min}
+                              maxDate={max || undefined}
+                              dateFormat="MMM dd"
+                              placeholderText={getDateRangeText()}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-1 focus:ring-green-500 cursor-pointer bg-white text-sm"
+                            />
+                          );
+                        })()}
+                      </div>
+                    </div>
+
                     <div className="relative">
                       {(() => {
                         const nights = calculateNights();

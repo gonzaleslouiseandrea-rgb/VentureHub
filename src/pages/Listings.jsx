@@ -747,48 +747,18 @@ export default function HostListingsPage() {
 
                 <div className="mt-8 w-full">
                   <p className="text-sm font-semibold mb-2">Availability range</p>
-                  <div className="relative w-full mt-2">
+                  <div className="mt-2 border border-gray-300 rounded-md p-3 inline-block bg-white">
                     <DatePicker
                       selected={availabilityDates[0]}
                       onChange={handleAvailabilityRangeChange}
                       startDate={availabilityDates[0]}
                       endDate={availabilityDates[1]}
                       selectsRange
+                      inline
                       minDate={new Date()}
                       dateFormat="MMM dd"
                       monthsShown={1}
-                      placeholderText={form.availabilityRange || 'Select availability dates'}
-                      className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm cursor-pointer"
-                      shouldCloseOnScroll
-                      popperPlacement="bottom-start"
-                      showPopperArrow={false}
-                      renderCustomHeader={(headerProps) => (
-                        <div className="flex items-center justify-between mb-2 px-1">
-                          <button
-                            type="button"
-                            onClick={headerProps.decreaseMonth}
-                            className="text-xs px-2 py-1 border border-gray-300 rounded-full bg-white hover:bg-gray-100"
-                          >
-                            Prev
-                          </button>
-                          <span className="text-sm font-semibold text-gray-800">
-                            {headerProps.date.toLocaleString('default', { month: 'long', year: 'numeric' })}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={headerProps.increaseMonth}
-                            className="text-xs px-2 py-1 border border-gray-300 rounded-full bg-white hover:bg-gray-100"
-                          >
-                            Next
-                          </button>
-                        </div>
-                      )}
                     />
-                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                    </div>
                   </div>
                   <p className="text-xs text-gray-500 mt-2">
                     Guests can only book within this date range.
