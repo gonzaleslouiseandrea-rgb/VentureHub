@@ -926,7 +926,7 @@ export default function ListingDetailPage() {
         </div>
       </div>
 
-      {(bookingError || bookingSuccess) && (
+      {bookingError || bookingSuccess ? (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 px-4">
           <div
             className={`max-w-md min-w-[260px] px-4 py-3 rounded-lg shadow-lg border text-sm flex items-start justify-between gap-3 ${
@@ -948,7 +948,7 @@ export default function ListingDetailPage() {
             </button>
           </div>
         </div>
-      )}
+      ) : null}
 
       {expandedImage && (
         <div
