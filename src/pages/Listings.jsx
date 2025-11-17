@@ -747,17 +747,17 @@ export default function HostListingsPage() {
 
                 <div className="mt-8 w-full">
                   <p className="text-sm font-semibold mb-2">Availability range</p>
-                  <div className="relative w-full mt-2">
+                  <div className="mt-2 inline-block border border-gray-300 rounded-md p-3 bg-white">
                     <DatePicker
                       selected={availabilityDates[0]}
                       onChange={handleAvailabilityRangeChange}
                       startDate={availabilityDates[0]}
                       endDate={availabilityDates[1]}
                       selectsRange
+                      inline
                       minDate={new Date()}
                       dateFormat="MMM dd"
-                      placeholderText={form.availabilityRange || 'Select availability dates'}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm cursor-pointer bg-white"
+                      monthsShown={1}
                     />
                   </div>
                   <p className="text-xs text-gray-500 mt-2">
