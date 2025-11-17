@@ -745,7 +745,7 @@ export default function HostListingsPage() {
                   />
                 </div>
 
-                <div className="mt-8 border border-gray-300 rounded-lg overflow-hidden h-64">
+                <div className="mt-8 border border-gray-300 rounded-lg overflow-hidden h-64 relative z-0">
                   <MapContainer
                     center={markerPosition || [14.5995, 120.9842]}
                     zoom={12}
@@ -763,7 +763,7 @@ export default function HostListingsPage() {
                   </MapContainer>
                 </div>
 
-                <div className="mt-8 w-full">
+                <div className="mt-10 w-full relative z-10">
                   <p className="text-sm font-semibold mb-2">Availability range</p>
                   <div className="mt-2 inline-block border border-gray-300 rounded-md p-3 bg-white">
                     <DatePicker
