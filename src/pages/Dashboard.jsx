@@ -23,6 +23,9 @@ export default function HostDashboardPage() {
   const [recentListings, setRecentListings] = useState([]);
   const [totalEarnings, setTotalEarnings] = useState(0);
   const [loadingEarnings, setLoadingEarnings] = useState(true);
+  const [listingCategoryFilter, setListingCategoryFilter] = useState('all');
+  const [listingPage, setListingPage] = useState(1);
+  const LISTINGS_PAGE_SIZE = 6;
 
   useEffect(() => {
     const fetchHostProfile = async () => {
@@ -92,6 +95,11 @@ export default function HostDashboardPage() {
 
     fetchStatsAndListings();
   }, [user]);
+
+  // Reset pagination when listings or filter change
+  useEffect(() => {
+    setListingPage(1);
+  }, [listingCategoryFilter, recentListings.length]);
 
   useEffect(() => {
     const fetchEarnings = async () => {
@@ -175,6 +183,17 @@ export default function HostDashboardPage() {
     }
     return `${hostProfile.listingLimit} listings`;
   };
+
+  const filteredListings = recentListings.filter((listing) => {
+    if (listingCategoryFilter === 'all') return true;
+    if (!listing.category) return false;
+    return listing.category === listingCategoryFilter;
+  });
+
+  const totalPages = Math.max(1, Math.ceil(filteredListings.length / LISTINGS_PAGE_SIZE) || 1);
+  const currentPage = Math.min(listingPage, totalPages);
+  const startIndex = (currentPage - 1) * LISTINGS_PAGE_SIZE;
+  const pageListings = filteredListings.slice(startIndex, startIndex + LISTINGS_PAGE_SIZE);
 
 
   return (
@@ -260,11 +279,40 @@ export default function HostDashboardPage() {
               </Link>
             </div>
             <p className="text-sm text-gray-600 mb-4">
-              A quick view of your listings. Go to the Listings tab to edit or create more.
+              A quick view of your listings. Use the filter to switch between listing types, or go to the Listings tab to edit and create more.
             </p>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {recentListings.slice(0, 6).map((listing) => {
+            {/* Category filter chips */}
+            <div className="flex flex-wrap gap-2 mb-4">
+              {[
+                { key: 'all', label: 'All' },
+                { key: 'home', label: 'Homes' },
+                { key: 'experience', label: 'Experiences' },
+                { key: 'service', label: 'Services' },
+              ].map((opt) => {
+                const selected = listingCategoryFilter === opt.key;
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => setListingCategoryFilter(opt.key)}
+                    className={`px-3 py-1.5 text-xs rounded-full border transition whitespace-nowrap ${
+                      selected
+                        ? 'bg-green-100 border-green-500 text-green-800'
+                        : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {pageListings.length === 0 ? (
+              <p className="text-sm text-gray-500 mb-2">No listings in this category yet.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {pageListings.map((listing) => {
                 const imageSrc =
                   listing.coverImage ||
                   (listing.images && listing.images.length > 0 ? listing.images[0] : null) ||
@@ -342,7 +390,42 @@ export default function HostDashboardPage() {
                   </div>
                 );
               })}
-            </div>
+              </div>
+            )}
+
+            {/* Pagination controls */}
+            {filteredListings.length > LISTINGS_PAGE_SIZE && (
+              <div className="flex items-center justify-between mt-4 text-xs text-gray-600">
+                <button
+                  type="button"
+                  onClick={() => setListingPage((prev) => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  className={`px-3 py-1.5 rounded-md border ${
+                    currentPage === 1
+                      ? 'border-gray-200 text-gray-400 cursor-not-allowed'
+                      : 'border-gray-300 text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  Previous
+                </button>
+                <span>
+                  Page {currentPage} of {totalPages} • {filteredListings.length} listing
+                  {filteredListings.length !== 1 ? 's' : ''}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setListingPage((prev) => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  className={`px-3 py-1.5 rounded-md border ${
+                    currentPage === totalPages
+                      ? 'border-gray-200 text-gray-400 cursor-not-allowed'
+                      : 'border-gray-300 text-gray-700 hover:bg-gray-100'
+                  }`}
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </div>
         ) : (
           <div className="bg-white border border-dashed border-gray-300 rounded-lg p-6 text-center text-sm text-gray-600">

@@ -13,9 +13,13 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
   updateDoc,
   addDoc,
   serverTimestamp,
+  query,
+  where,
+  orderBy,
 } from 'firebase/firestore';
 import { db } from '../firebase.js';
 import { useAuth } from '../auth/AuthContext.jsx';
@@ -42,6 +46,8 @@ export default function HostAccountPage() {
   const [upgradePlanKey, setUpgradePlanKey] = useState('');
   const [upgrading, setUpgrading] = useState(false);
   const [upgradeMessage, setUpgradeMessage] = useState('');
+  const [pointsEvents, setPointsEvents] = useState([]);
+  const [pointsEventsLoading, setPointsEventsLoading] = useState(false);
 
   useEffect(() => {
     const loadHost = async () => {
@@ -73,6 +79,30 @@ export default function HostAccountPage() {
   }, [user]);
 
   useEffect(() => {
+    const loadPointsEvents = async () => {
+      if (!user) {
+        setPointsEvents([]);
+        return;
+      }
+
+      try {
+        setPointsEventsLoading(true);
+        const eventsRef = collection(db, 'hostPointsEvents');
+        const q = query(eventsRef, where('hostId', '==', user.uid), orderBy('createdAt', 'desc'));
+        const snap = await getDocs(q);
+        const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setPointsEvents(items);
+      } catch {
+        setPointsEvents([]);
+      } finally {
+        setPointsEventsLoading(false);
+      }
+    };
+
+    loadPointsEvents();
+  }, [user]);
+
+  useEffect(() => {
     if (!hostProfile) {
       setName('');
       setPhone('');
@@ -98,6 +128,55 @@ export default function HostAccountPage() {
     );
     setProvider(hostProfile.provider || '');
   }, [hostProfile]);
+
+  // One-time signup bonus for hosts created before points were introduced
+  useEffect(() => {
+    const grantSignupBonusIfNeeded = async () => {
+      if (!user || !hostProfile) return;
+      const hasPoints = hostProfile.points && (typeof hostProfile.points.lifetime === 'number');
+      const signupBonusGranted = hostProfile.signupPointsGranted === true;
+      if (hasPoints || signupBonusGranted) return;
+
+      try {
+        const hostRef = doc(db, 'hosts', user.uid);
+        const bonus = 100;
+        const updatedPoints = {
+          lifetime: bonus,
+          available: bonus,
+          tier: computeTierFromPoints(bonus),
+        };
+
+        await updateDoc(hostRef, {
+          points: updatedPoints,
+          signupPointsGranted: true,
+          updatedAt: serverTimestamp(),
+        });
+
+        const eventsRef = collection(db, 'hostPointsEvents');
+        await addDoc(eventsRef, {
+          hostId: user.uid,
+          points: bonus,
+          reason: 'signup_bonus',
+          metadata: {},
+          createdAt: serverTimestamp(),
+        });
+
+        setHostProfile((prev) => (prev ? { ...prev, points: updatedPoints, signupPointsGranted: true } : prev));
+        setPointsEvents((prev) => [{
+          id: `local-signup-${Date.now()}`,
+          hostId: user.uid,
+          points: bonus,
+          reason: 'signup_bonus',
+          metadata: {},
+          createdAt: { toDate: () => new Date() },
+        }, ...prev]);
+      } catch {
+        // silently ignore if we can't grant bonus
+      }
+    };
+
+    grantSignupBonusIfNeeded();
+  }, [user, hostProfile]);
 
   const handleTabChange = (event, newValue) => {
     setTab(newValue);
@@ -228,6 +307,16 @@ export default function HostAccountPage() {
   const progressToNext = nextTier
     ? Math.min(100, Math.max(0, ((lifetimePoints - tierMeta.min) / (nextTier.min - tierMeta.min)) * 100))
     : 100;
+  const pointsToNextTier = nextTier ? Math.max(0, nextTier.min - lifetimePoints) : 0;
+
+  const now = new Date();
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const pointsThisWeek = pointsEvents.reduce((sum, ev) => {
+    const pts = typeof ev.points === 'number' ? ev.points : 0;
+    const createdAt = ev.createdAt?.toDate ? ev.createdAt.toDate() : null;
+    if (!createdAt) return sum;
+    return createdAt >= weekAgo ? sum + pts : sum;
+  }, 0);
 
   const updateHostPoints = async (hostId, deltaAvailable) => {
     const hostRef = doc(db, 'hosts', hostId);
@@ -354,7 +443,7 @@ export default function HostAccountPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-6xl mx-auto px-6 py-8">
+      <div className="w-full px-6 py-8">
         <div className="mb-6">
           <Typography variant="h4" gutterBottom>
             Host Account
@@ -670,199 +759,216 @@ export default function HostAccountPage() {
             )}
 
             {tab === 3 && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 space-y-6">
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Points & rewards</h2>
-                  <p className="text-gray-600 mb-4">
-                    Track your hosting points, tier, and redeem rewards like fee discounts and promotional
-                    upgrades.
-                  </p>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                      <p className="text-xs font-semibold text-gray-500 uppercase flex items-center justify-between">
-                        <span>Current tier</span>
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-50 text-green-700 border border-green-200">
-                          {tierMeta.label}
-                        </span>
-                      </p>
-                      <p className="mt-2 text-2xl font-bold text-gray-900">
-                        {lifetimePoints.toLocaleString()} pts
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Available:{' '}
-                        <span className="font-semibold text-gray-800">
-                          {availablePoints.toLocaleString()} pts
-                        </span>
-                      </p>
-                      {nextTier ? (
-                        <div className="mt-3">
-                          <div className="flex justify-between text-[11px] text-gray-500 mb-1">
-                            <span>Progress to {nextTier.label}</span>
-                            <span>{Math.max(0, nextTier.min - lifetimePoints)} pts to go</span>
+              <div className="space-y-6">
+                {/* Hero card */}
+                <div className="bg-gradient-to-r from-emerald-600 via-green-600 to-teal-500 rounded-2xl shadow-lg text-white p-6 md:p-8">
+                  <div className="flex flex-col gap-6">
+                    <div className="flex items-start gap-4">
+                      <div className="w-12 h-12 rounded-full bg-white/10 flex items-center justify-center text-lg font-semibold">
+                        {hostProfile?.name
+                          ? hostProfile.name.charAt(0).toUpperCase()
+                          : user?.email
+                          ? user.email.charAt(0).toUpperCase()
+                          : 'H'}
+                      </div>
+                      <div className="flex flex-col gap-3 text-sm w-full">
+                        <p className="text-xs text-emerald-100">
+                          Tier: <span className="font-semibold capitalize">{tierMeta.label}</span>
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div className="bg-white/10 rounded-xl p-3 flex flex-col justify-between">
+                            <p className="text-emerald-100 text-xs mb-1">Available points</p>
+                            <p className="text-2xl font-bold">{availablePoints.toLocaleString()}</p>
+                            <p className="text-[11px] text-emerald-100 mt-1">Use these points to unlock rewards</p>
                           </div>
-                          <div className="w-full h-2 rounded-full bg-gray-100 overflow-hidden">
-                            <div
-                              className="h-full rounded-full bg-green-500 transition-all"
-                              style={{ width: `${progressToNext}%` }}
-                            />
+                          <div className="bg-white/10 rounded-xl p-3 flex flex-col justify-between">
+                            <p className="text-emerald-100 text-xs mb-1">Lifetime points</p>
+                            <p className="text-2xl font-bold">{lifetimePoints.toLocaleString()}</p>
+                            <p className="text-[11px] text-emerald-100 mt-1">
+                              {nextTier
+                                ? `${pointsToNextTier.toLocaleString()} pts to ${nextTier.label}`
+                                : 'You are at the highest tier'}
+                            </p>
+                          </div>
+                          <div className="bg-white/10 rounded-xl p-3 flex flex-col justify-between">
+                            <p className="text-emerald-100 text-xs mb-1">This week</p>
+                            <p className="text-2xl font-bold">
+                              {pointsThisWeek >= 0 ? '+' : ''}
+                              {pointsThisWeek.toLocaleString()} pts
+                            </p>
+                            <p className="text-[11px] text-emerald-100 mt-1">Points earned in the last 7 days</p>
                           </div>
                         </div>
-                      ) : (
-                        <p className="mt-3 text-[11px] text-gray-500">You&apos;re at the highest tier.</p>
-                      )}
+                      </div>
                     </div>
+                    <p className="text-[11px] text-emerald-100 max-w-md">
+                      Earn points from accepted bookings and other host actions, then redeem them for discounts, free
+                      listings, and promotions below.
+                    </p>
+                  </div>
 
-                    <div className="text-xs text-gray-600 space-y-2">
-                      <p className="font-semibold text-gray-900">How you earn points</p>
-                      <ul className="list-disc list-inside space-y-1">
-                        <li>+20 pts for each completed booking.</li>
-                        <li>+100 pts signup bonus when you create your host account.</li>
-                        <li>Future: ratings, fast responses, and high completion rates.</li>
-                      </ul>
-                      <Divider sx={{ my: 1 }} />
-                      <p className="font-semibold text-gray-900">Tier ranges</p>
-                      <ul className="list-disc list-inside space-y-1">
-                        <li>Bronze: 0–499 pts</li>
-                        <li>Silver: 500–1,499 pts</li>
-                        <li>Gold: 1,500–3,499 pts</li>
-                        <li>Platinum: 3,500–6,999 pts</li>
-                        <li>Diamond: 7,000+ pts</li>
-                      </ul>
+                  {/* Progress bar */}
+                  <div className="mt-6">
+                    <div className="flex items-center justify-between text-xs mb-2">
+                      <span className="text-emerald-100">Progress to next tier</span>
+                      <span className="text-emerald-100 font-medium">{Math.round(progressToNext)}%</span>
+                    </div>
+                    <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-emerald-400 rounded-full"
+                        style={{ width: `${progressToNext}%` }}
+                      />
                     </div>
                   </div>
                 </div>
 
-                <Divider />
-
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-2">Redeem your points</h3>
-                  <p className="text-sm text-gray-600 mb-4">
-                    Use available points to redeem fee discounts or boost visibility for your listings.
-                  </p>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900 mb-2">Platform fee discounts</p>
-                      <div className="space-y-2">
-                        <button
-                          type="button"
-                          disabled={redeeming || availablePoints < 500}
-                          onClick={() => handleRedeemFeeDiscount(500, 5, 30)}
-                          className={`w-full px-3 py-2 rounded-md border text-left transition ${
-                            availablePoints < 500 || redeeming
-                              ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed'
-                              : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50'
-                          }`}
-                        >
-                          <div className="flex justify-between items-center">
-                            <span>500 pts → 5% fee discount (30 days)</span>
-                            <span className="text-xs text-gray-500">{availablePoints}/500</span>
-                          </div>
-                        </button>
-                        <button
-                          type="button"
-                          disabled={redeeming || availablePoints < 1000}
-                          onClick={() => handleRedeemFeeDiscount(1000, 10, 30)}
-                          className={`w-full px-3 py-2 rounded-md border text-left transition ${
-                            availablePoints < 1000 || redeeming
-                              ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed'
-                              : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50'
-                          }`}
-                        >
-                          <div className="flex justify-between items-center">
-                            <span>1,000 pts → 10% fee discount (30 days)</span>
-                            <span className="text-xs text-gray-500">{availablePoints}/1000</span>
-                          </div>
-                        </button>
-                        <button
-                          type="button"
-                          disabled={redeeming || availablePoints < 2000}
-                          onClick={() => handleRedeemFeeDiscount(2000, 20, 30)}
-                          className={`w-full px-3 py-2 rounded-md border text-left transition ${
-                            availablePoints < 2000 || redeeming
-                              ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed'
-                              : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50'
-                          }`}
-                        >
-                          <div className="flex justify-between items-center">
-                            <span>2,000 pts → 20% fee discount (30 days)</span>
-                            <span className="text-xs text-gray-500">{availablePoints}/2000</span>
-                          </div>
-                        </button>
+                {/* Rewards + Activity */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  {/* Rewards column */}
+                  <div className="lg:col-span-1 space-y-4">
+                    <div className="bg-gradient-to-br from-emerald-500 to-teal-500 rounded-2xl shadow-md text-white p-5 flex flex-col justify-between min-h-[160px]">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-xs uppercase tracking-wide">Fee discount reward</p>
+                        <span className="text-[11px] bg-white/20 px-2 py-0.5 rounded-full">
+                          {availablePoints >= 150 ? 'Unlocked' : 'Locking soon'}
+                        </span>
+                      </div>
+                      <div className="flex items-end justify-between gap-3">
+                        <div>
+                          <p className="text-3xl font-extrabold leading-none mb-1">10% fee discount</p>
+                          <p className="text-xs text-emerald-50 max-w-[180px]">
+                            Apply a temporary discount on platform fees for your future bookings.
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-emerald-50 mb-1">150 pts</p>
+                          <button
+                            type="button"
+                            disabled={availablePoints < 150 || redeeming}
+                            onClick={() => handleRedeemFeeDiscount(150, 10, 30)}
+                            className={`px-4 py-1.5 text-xs font-semibold rounded-full shadow-sm transition ${
+                              availablePoints >= 150 && !redeeming
+                                ? 'bg-white text-emerald-600 hover:bg-emerald-50'
+                                : 'bg-white/30 text-emerald-100 cursor-not-allowed'
+                            }`}
+                          >
+                            {availablePoints >= 150 ? 'Redeem now' : 'Not enough points'}
+                          </button>
+                        </div>
                       </div>
                     </div>
 
-                    <div>
-                      <p className="text-sm font-semibold text-gray-900 mb-2">Promotion upgrades</p>
-                      <div className="space-y-2">
-                        <button
-                          type="button"
-                          disabled={redeeming || availablePoints < 200}
-                          onClick={handleRedeemFreeListing}
-                          className={`w-full px-3 py-2 rounded-md border text-left transition ${
-                            availablePoints < 200 || redeeming
-                              ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed'
-                              : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50'
-                          }`}
-                        >
-                          <div className="flex justify-between items-center">
-                            <span>200 pts → One-time free listing</span>
-                            <span className="text-xs text-gray-500">{availablePoints}/200</span>
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 space-y-3">
+                      <h3 className="text-sm font-semibold text-gray-900">Other rewards</h3>
+                      <div className="space-y-2 text-xs">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium text-gray-800">Free listing credit</p>
+                            <p className="text-gray-500">Publish one listing without platform fee</p>
                           </div>
-                        </button>
-                        <button
-                          type="button"
-                          disabled={redeeming || availablePoints < 300}
-                          onClick={() => handleRedeemPromotion(300, 'featured', 7)}
-                          className={`w-full px-3 py-2 rounded-md border text-left transition ${
-                            availablePoints < 300 || redeeming
-                              ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed'
-                              : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50'
-                          }`}
-                        >
-                          <div className="flex justify-between items-center">
-                            <span>300 pts → Featured listing (7 days)</span>
-                            <span className="text-xs text-gray-500">{availablePoints}/300</span>
+                          <div className="text-right">
+                            <p className="text-gray-500 mb-1">200 pts</p>
+                            <button
+                              type="button"
+                              disabled={availablePoints < 200 || redeeming}
+                              onClick={handleRedeemFreeListing}
+                              className={`px-3 py-1 rounded-full border text-[11px] font-medium transition ${
+                                availablePoints >= 200 && !redeeming
+                                  ? 'border-emerald-500 text-emerald-600 hover:bg-emerald-50'
+                                  : 'border-gray-200 text-gray-400 cursor-not-allowed'
+                              }`}
+                            >
+                              Redeem
+                            </button>
                           </div>
-                        </button>
-                        <button
-                          type="button"
-                          disabled={redeeming || availablePoints < 800}
-                          onClick={() => handleRedeemPromotion(800, 'homepage', 7)}
-                          className={`w-full px-3 py-2 rounded-md border text-left transition ${
-                            availablePoints < 800 || redeeming
-                              ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed'
-                              : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50'
-                          }`}
-                        >
-                          <div className="flex justify-between items-center">
-                            <span>800 pts → Homepage spotlight (7 days)</span>
-                            <span className="text-xs text-gray-500">{availablePoints}/800</span>
+                        </div>
+
+                        <div className="flex items-center justify-between border-t border-gray-100 pt-2">
+                          <div>
+                            <p className="font-medium text-gray-800">Listing promotion</p>
+                            <p className="text-gray-500">Boost listing visibility for 7 days</p>
                           </div>
-                        </button>
-                        <button
-                          type="button"
-                          disabled={redeeming || availablePoints < 1200}
-                          onClick={() => handleRedeemPromotion(1200, 'seasonal', 14)}
-                          className={`w-full px-3 py-2 rounded-md border text-left transition ${
-                            availablePoints < 1200 || redeeming
-                              ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed'
-                              : 'bg-white text-gray-800 border-gray-300 hover:bg-gray-50'
-                          }`}
-                        >
-                          <div className="flex justify-between items-center">
-                            <span>1,200 pts → Seasonal promo placement (14 days)</span>
-                            <span className="text-xs text-gray-500">{availablePoints}/1200</span>
+                          <div className="text-right">
+                            <p className="text-gray-500 mb-1">120 pts</p>
+                            <button
+                              type="button"
+                              disabled={availablePoints < 120 || redeeming}
+                              onClick={() => handleRedeemPromotion(120, 'boost-7-days', 7)}
+                              className={`px-3 py-1 rounded-full border text-[11px] font-medium transition ${
+                                availablePoints >= 120 && !redeeming
+                                  ? 'border-indigo-500 text-indigo-600 hover:bg-indigo-50'
+                                  : 'border-gray-200 text-gray-400 cursor-not-allowed'
+                              }`}
+                            >
+                              Redeem
+                            </button>
                           </div>
-                        </button>
+                        </div>
                       </div>
+
+                      {redeemMessage && (
+                        <p className="mt-2 text-[11px] text-gray-600">{redeemMessage}</p>
+                      )}
                     </div>
                   </div>
 
-                  {redeemMessage && (
-                    <p className="mt-4 text-xs text-gray-700">{redeemMessage}</p>
-                  )}
+                  {/* Activity column */}
+                  <div className="lg:col-span-2">
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4 md:p-5 h-full flex flex-col">
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-sm font-semibold text-gray-900">Points activity</h3>
+                        <span className="text-[11px] text-gray-500">
+                          Showing recent events
+                        </span>
+                      </div>
+
+                      {pointsEventsLoading ? (
+                        <p className="text-xs text-gray-500">Loading points history...</p>
+                      ) : pointsEvents.length === 0 ? (
+                        <p className="text-xs text-gray-500">
+                          No points events yet. You’ll earn points from accepted bookings and other host actions.
+                        </p>
+                      ) : (
+                        <div className="space-y-2 max-h-80 overflow-y-auto">
+                          {pointsEvents.map((ev) => {
+                            const createdAt = ev.createdAt?.toDate ? ev.createdAt.toDate() : null;
+                            const pts = typeof ev.points === 'number' ? ev.points : 0;
+                            return (
+                              <div
+                                key={ev.id}
+                                className="flex items-center justify-between rounded-xl px-3 py-2 bg-gray-50 border border-gray-100"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center text-white text-xs font-bold">
+                                    {pts >= 0 ? '+' : '-'}
+                                  </div>
+                                  <div>
+                                    <p className="text-xs font-semibold text-gray-900">
+                                      {ev.reason || 'Points activity'}
+                                    </p>
+                                    {createdAt && (
+                                      <p className="text-[11px] text-gray-500">
+                                        {createdAt.toLocaleString()}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="text-right text-xs">
+                                  <p className="font-semibold text-gray-900">
+                                    {pts >= 0 ? '+' : ''}
+                                    {pts.toLocaleString()} pts
+                                  </p>
+                                  {typeof ev.metadata?.bookingId === 'string' && (
+                                    <p className="text-[11px] text-gray-500">Booking: {ev.metadata.bookingId}</p>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}

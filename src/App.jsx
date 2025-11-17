@@ -17,6 +17,9 @@ import HostAccountPage from './pages/Account.jsx';
 import HostBookingsPage from './pages/HostBookings.jsx';
 import HostRefundsPage from './pages/HostRefunds.jsx';
 import HostNotificationsPage from './pages/HostNotifications.jsx';
+import HostCouponsPage from './pages/HostCoupons.jsx';
+import HostPlanPage from './pages/HostPlan.jsx';
+import ChatRoomPage from './pages/ChatRoom.jsx';
 import ProtectedRoute from './auth/ProtectedRoute.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 
@@ -33,6 +36,7 @@ function App() {
         <Route path="/browse" element={<BrowsePage />} />
         <Route path="/listing/:id" element={<ListingDetailPage />} />
         <Route path="/guest/account" element={<GuestAccountPage />} />
+        <Route path="/chat/:listingId/:guestId" element={<ProtectedRoute><ChatRoomPage /></ProtectedRoute>} />
 
         <Route
           path="/host"
@@ -46,7 +50,9 @@ function App() {
           <Route path="dashboard" element={<HostDashboardPage />} />
           <Route path="listings" element={<HostListingsPage />} />
           <Route path="bookings" element={<HostBookingsPage />} />
+          <Route path="coupons" element={<HostCouponsPage />} />
           <Route path="refunds" element={<HostRefundsPage />} />
+          <Route path="plan" element={<HostPlanPage />} />
           <Route path="notifications" element={<HostNotificationsPage />} />
           <Route path="messages" element={<HostMessagesPage />} />
           <Route path="calendar" element={<HostCalendarPage />} />

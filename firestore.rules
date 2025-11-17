@@ -1,185 +1,220 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ===== USERS (guest profiles) =====
-    // Docs keyed by auth uid
+    // Helper: is signed-in
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Helper: same user (by field on the document)
+    function isOwner(userIdField) {
+      return isSignedIn() && resource.data[userIdField] == request.auth.uid;
+    }
+
+    // USERS: own profile
     match /users/{userId} {
-      // Logged-in user can read their own profile
-      allow read: if request.auth != null && request.auth.uid == userId;
-
-      // Logged-in user can create their own profile
-      allow create: if request.auth != null && request.auth.uid == userId;
-
-      // Allow updates by the owner; also allow unauthenticated updates used by
-      // email verification / onboarding flows from the client.
-      allow update: if
-        (request.auth != null && request.auth.uid == userId) ||
-        (request.auth == null);
-
-      // No deletes from client
-      allow delete: if false;
+      allow read: if isSignedIn() && request.auth.uid == userId;
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn() && request.auth.uid == userId;
+      // no delete from client by default
     }
 
-    // ===== HOSTS =====
-    // Docs keyed by host uid
+    // HOSTS: host metadata / subscription / points
     match /hosts/{hostId} {
-      allow read, create, update: if request.auth != null && request.auth.uid == hostId;
-      allow delete: if false;
+      allow read: if isSignedIn() && request.auth.uid == hostId;
+      allow create, update: if isSignedIn() && request.auth.uid == hostId;
     }
 
-    // ===== LISTINGS =====
-    // Each listing has hostId field
+    // LISTINGS: public read, hosts manage their own
     match /listings/{listingId} {
-      // Public browse
-      allow read: if true;
+      // Anyone can read published listings
+      allow read: if resource.data.status == 'published'
+                  || (isSignedIn() && resource.data.hostId == request.auth.uid);
 
-      // Only the owner host can create / modify
-      allow create, update, delete: if request.auth != null &&
-        request.resource.data.hostId == request.auth.uid;
+      // Host creates listing for themselves
+      allow create: if isSignedIn()
+                    && request.resource.data.hostId == request.auth.uid;
+
+      // Host updates their own listing
+      allow update, delete: if isSignedIn()
+                            && resource.data.hostId == request.auth.uid;
     }
 
-    // ===== BOOKINGS =====
-    // booking has guestId and hostId
+    // BOOKINGS: guests create, host/guest read, basic update
     match /bookings/{bookingId} {
-      // Guest or host involved can read
-      allow read: if request.auth != null &&
-        (resource.data.guestId == request.auth.uid ||
-         resource.data.hostId == request.auth.uid);
+      // Read if you are the guest or the host
+      allow read: if isSignedIn()
+                  && (resource.data.guestId == request.auth.uid
+                      || resource.data.hostId == request.auth.uid);
 
-      // Guest creates a booking
-      allow create: if request.auth != null &&
-        request.resource.data.guestId == request.auth.uid;
+      // Guest creates booking for themselves
+      allow create: if isSignedIn()
+                    && request.resource.data.guestId == request.auth.uid;
 
-      // Guest or host can update/cancel
-      allow update, delete: if request.auth != null &&
-        (resource.data.guestId == request.auth.uid ||
-         resource.data.hostId == request.auth.uid);
+      // Allow status updates by host or guest (e.g., accepted/declined/refundRequested)
+      allow update: if isSignedIn()
+                    && (resource.data.guestId == request.auth.uid
+                        || resource.data.hostId == request.auth.uid);
     }
 
-    // ===== REVIEWS =====
-    // review has authorId, listingId
-    match /reviews/{reviewId} {
-      allow read: if true;
+    // REFUNDS: guest creates, host/admin reads/updates
+    match /refunds/{refundId} {
+      // Read if you are the guest or host involved
+      allow read: if isSignedIn()
+                  && (resource.data.guestId == request.auth.uid
+                      || resource.data.hostId == request.auth.uid);
 
-      allow create: if request.auth != null &&
-        request.resource.data.authorId == request.auth.uid;
+      // Guest creates refund request
+      allow create: if isSignedIn()
+                    && request.resource.data.guestId == request.auth.uid;
 
-      allow update, delete: if request.auth != null &&
-        resource.data.authorId == request.auth.uid;
+      // Host can update status (e.g., approved/denied)
+      allow update: if isSignedIn()
+                    && resource.data.hostId == request.auth.uid;
     }
 
-    // ===== FAVORITES (guest wishlist) =====
-    // favorite has userId, listingId
+    // MESSAGES: chat between guest and host
+    match /messages/{messageId} {
+      // Read if you are the guest or host in the conversation
+      allow read: if isSignedIn()
+                  && (resource.data.guestId == request.auth.uid
+                      || resource.data.hostId == request.auth.uid);
+
+      // Create if you are the sender and either guestId or hostId equals you
+      allow create: if isSignedIn()
+                    && (
+                      request.resource.data.senderId == request.auth.uid
+                      && (
+                        request.resource.data.guestId == request.auth.uid
+                        || request.resource.data.hostId == request.auth.uid
+                      )
+                    );
+    }
+
+    // WISHLIST PREFERENCES
+    match /wishlistPreferences/{userId} {
+      allow read, create, update: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    // FAVORITES (guest wishlist)
     match /favorites/{favoriteId} {
       // User can read their own favorites
-      allow read: if request.auth != null &&
-        resource.data.userId == request.auth.uid;
+      allow read: if isSignedIn()
+                  && resource.data.userId == request.auth.uid;
 
       // User can create their own favorite
-      allow create: if request.auth != null &&
-        request.resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn()
+                    && request.resource.data.userId == request.auth.uid;
 
       // User can delete their own favorite
-      allow delete: if request.auth != null &&
-        resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn()
+                    && resource.data.userId == request.auth.uid;
 
       // No updates
       allow update: if false;
     }
 
-    // ===== WISHLIST PREFERENCES =====
-    // Docs keyed by auth uid: wishlistPreferences/{userId}
-    match /wishlistPreferences/{userId} {
-      allow read, write: if request.auth != null &&
-        request.auth.uid == userId;
+    // REVIEWS: guests leave reviews on listings
+    match /reviews/{reviewId} {
+      allow read: if true;
+
+      allow create: if isSignedIn()
+                    && request.resource.data.guestId == request.auth.uid;
+
+      // Optional: allow guest to update/delete own review
+      allow update, delete: if isSignedIn()
+                            && resource.data.guestId == request.auth.uid;
     }
 
-    // ===== MESSAGES (guest <-> host) =====
-    // message has guestId, hostId, listingId, senderId, senderRole, text
-    match /messages/{messageId} {
-      // Guest or host involved can read
-      allow read: if request.auth != null &&
-        (resource.data.guestId == request.auth.uid ||
-         resource.data.hostId == request.auth.uid);
-
-      // Guest or host involved can create a message in their own conversation
-      allow create: if request.auth != null &&
-        (request.resource.data.guestId == request.auth.uid ||
-         request.resource.data.hostId == request.auth.uid);
-
-      // Guest or host can delete their own message
-      allow delete: if request.auth != null &&
-        (resource.data.guestId == request.auth.uid ||
-         resource.data.hostId == request.auth.uid);
-
-      // No general updates for now
-      allow update: if false;
-    }
-
-    // ===== PAYMENTS (server-managed) =====
-    match /payments/{paymentId} {
-      // Client can read if they are involved
-      allow read: if request.auth != null &&
-        (resource.data.guestId == request.auth.uid ||
-         resource.data.hostId == request.auth.uid);
-
-      // Writes only by backend (keep false from client)
-      allow write: if false;
-    }
-
-    // ===== REFUNDS =====
-    // refund has guestId, hostId, bookingId, listingId, status, amount, reason
-    match /refunds/{refundId} {
-      // Guest can create a refund request for their own booking
-      allow create: if request.auth != null &&
-        request.resource.data.guestId == request.auth.uid;
-
-      // Guest or host involved can read
-      allow read: if request.auth != null &&
-        (resource.data.guestId == request.auth.uid ||
-         resource.data.hostId == request.auth.uid);
-
-      // Host can update the refund (e.g. status approved/rejected)
-      allow update: if request.auth != null &&
-        request.auth.uid == resource.data.hostId;
-
-      // No deletes from client
-      allow delete: if false;
-    }
-
-    // ===== WALLETS =====
-    // One wallet per user: wallets/{userId}
+    // WALLETS & WALLET TRANSACTIONS
     match /wallets/{userId} {
-      // User can read and write only their own wallet
-      allow read, write: if request.auth != null &&
-        request.auth.uid == userId;
+      allow read, create, update: if isSignedIn() && request.auth.uid == userId;
     }
 
-    // ===== WALLET TRANSACTIONS =====
-    // walletTransactions/{txId} with userId field
     match /walletTransactions/{txId} {
-      // User can read their own transactions
-      allow read: if request.auth != null &&
-        request.auth.uid == resource.data.userId;
-
-      // User can create their own transaction records (topups, spends)
-      allow create: if request.auth != null &&
-        request.resource.data.userId == request.auth.uid;
-
-      // No client updates/deletes
-      allow update, delete: if false;
+      allow read: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
     }
 
-    // ===== ANALYTICS (admin / backend only) =====
-    match /analytics/{docId} {
-      allow read, write: if false;
+    // COUPONS: hosts manage their coupons, guests read active ones
+    match /coupons/{couponId} {
+      // Anyone signed-in can read ACTIVE coupons,
+      // Host can read all of their own coupons (active or not).
+      allow get, list: if isActiveCoupon() || isHostOwner();
+
+      // Host creates coupon for themselves
+      allow create: if isSignedIn()
+                    && request.resource.data.hostId == request.auth.uid;
+
+      // Host updates or deletes their own coupon
+      allow update, delete: if isHostOwner();
+
+      function isHostOwner() {
+        return isSignedIn() && resource.data.hostId == request.auth.uid;
+      }
+
+      function isActiveCoupon() {
+        return resource.data.active == true;
+      }
     }
 
-    // ===== FALLBACK: deny everything else =====
-    match /{document=**} {
-      allow read, write: if false;
+    // HOST FEE DISCOUNTS (points reward: fee discount)
+    match /hostFeeDiscounts/{docId} {
+      // Host can read their own discounts
+      allow read: if isSignedIn()
+                  && resource.data.hostId == request.auth.uid;
+
+      // Host creates discounts when redeeming points
+      allow create: if isSignedIn()
+                    && request.resource.data.hostId == request.auth.uid;
+      // No client updates/deletes for now
+    }
+
+    // HOST FREE LISTINGS (points reward: free listing credits)
+    match /hostFreeListings/{docId} {
+      // Host can read their own free listing credits
+      allow read: if isSignedIn()
+                  && resource.data.hostId == request.auth.uid;
+
+      // Host creates credits when redeeming points
+      allow create: if isSignedIn()
+                    && request.resource.data.hostId == request.auth.uid;
+
+      // HostListings.jsx decrements remainingListings when a credit is consumed
+      allow update: if isSignedIn()
+                    && resource.data.hostId == request.auth.uid;
+    }
+
+    // HOST PROMOTIONS (points reward: promotions/boosts)
+    match /hostPromotions/{promoId} {
+      // Host can read their own promotions
+      allow read: if isSignedIn()
+                  && resource.data.hostId == request.auth.uid;
+
+      // Host creates promotions when redeeming points
+      allow create: if isSignedIn()
+                    && request.resource.data.hostId == request.auth.uid;
+    }
+
+    // HOST EARNINGS (updated when bookings are accepted)
+    match /hostEarnings/{hostId} {
+      // Host can see their own earnings
+      allow read: if isSignedIn() && request.auth.uid == hostId;
+
+      // HostBookings.jsx writes/updates this from the client
+      allow create, update: if isSignedIn() && request.auth.uid == hostId;
+    }
+
+    // HOST POINTS EVENTS (log of how points were earned)
+    match /hostPointsEvents/{eventId} {
+      // Host can read their own events
+      allow read: if isSignedIn()
+                  && resource.data.hostId == request.auth.uid;
+
+      // Logged when signup bonus or booking points are awarded
+      allow create: if isSignedIn()
+                    && request.resource.data.hostId == request.auth.uid;
     }
   }
 }

@@ -63,20 +63,107 @@ export default function GuestAccountPage() {
   const [replyText, setReplyText] = useState('');
   const [sending, setSending] = useState(false);
   const [expandedImage, setExpandedImage] = useState(null);
+  const [coupons, setCoupons] = useState([]);
+  const [loadingCoupons, setLoadingCoupons] = useState(true);
+  const [couponError, setCouponError] = useState('');
 
   const paypalClientId = import.meta.env.VITE_PAYPAL_CLIENT_ID || '';
 
   const availableCategories = [
-    { key: 'home', label: 'Homes', emoji: '🏠' },
-    { key: 'experience', label: 'Experiences', emoji: '🎭' },
-    { key: 'service', label: 'Services', emoji: '🛠️' },
+    { key: 'home', label: 'Homes', emoji: '\ud83c\udfe0' },
+    { key: 'experience', label: 'Experiences', emoji: '\ud83c\udfad' },
+    { key: 'service', label: 'Services', emoji: '\ud83d\udee0\ufe0f' },
   ];
 
+  // Wishlist chips now mirror the host amenities quick-pick chips from the listing wizard
+  // so that selecting the same terms on both sides aligns better for filtering.
   const wishlistSuggestionOptions = {
-    home: ['Beachfront', 'City center', 'Pet-friendly', 'With pool', 'Entire place'],
-    experience: ['Food & drinks', 'Tours', 'Workshops', 'Nightlife', 'Outdoor adventures'],
-    service: ['Cleaning', 'Transport', 'Event help', 'Photography', 'Business services'],
+    home: [
+      'Free WiFi',
+      'Air conditioning / Heating',
+      'Private bathroom',
+      'Fresh linens and towels',
+      'Complimentary toiletries',
+      'Kitchen or kitchenette access',
+      'Refrigerator & basic cooking tools',
+      'Television / Smart TV',
+      'Workspace or desk area',
+      'On-site parking / street parking',
+      '24/7 security or gated entrance',
+      'Laundry facilities (shared or in-unit)',
+      'Outdoor seating area / balcony',
+      'Essentials: soap, shampoo, toilet paper',
+      'Drinking water or electric kettle',
+    ],
+    experience: [
+      'Experienced guide or instructor',
+      'Safety equipment (helmets, life vests, etc., if needed)',
+      'Materials or supplies for the activity',
+      'Introductory orientation or briefing',
+      'Snacks or refreshments (if included)',
+      'Photos or souvenirs (depending on listing)',
+      'Transportation (if stated in listing)',
+      'Group or private session options',
+      'Printed or digital itinerary',
+    ],
+    service: [
+      'Professional service provider',
+      'Necessary tools or equipment (service-specific)',
+      'Safety-checked materials and supplies',
+      'Transparent pricing before booking',
+      'Customer support for concerns',
+      'Optional add-ons (if applicable)',
+      'Satisfaction guarantee',
+      'Service report or summary (when applicable)',
+    ],
   };
+
+  const normaliseListField = (value) => {
+    if (!value) return [];
+    if (Array.isArray(value)) {
+      return value
+        .map((v) => (typeof v === 'string' ? v.trim().toLowerCase() : ''))
+        .filter((v) => v.length > 0);
+    }
+    if (typeof value === 'string') {
+      return value
+        .split(',')
+        .map((v) => v.trim().toLowerCase())
+        .filter((v) => v.length > 0);
+    }
+    return [];
+  };
+
+  const buildPreferenceKeywords = () => {
+    const keywords = new Set();
+
+    Object.values(wishlistSuggestionOptions).forEach((list) => {
+      list.forEach((item) => {
+        if (item && typeof item === 'string') {
+          keywords.add(item.toLowerCase());
+        }
+      });
+    });
+
+    if (wishlistTags && typeof wishlistTags === 'object') {
+      Object.values(wishlistTags).forEach((tags) => {
+        if (Array.isArray(tags)) {
+          tags.forEach((tag) => {
+            if (tag && typeof tag === 'string') {
+              keywords.add(tag.toLowerCase());
+            }
+          });
+        }
+      });
+    }
+
+    return Array.from(keywords);
+  };
+
+  // Active wishlist category is single-select: either the first saved preference or default to 'home'
+  const activeWishlistCategoryKey = wishlistPreferences[0] || 'home';
+  const activeWishlistCategory =
+    availableCategories.find((c) => c.key === activeWishlistCategoryKey) || availableCategories[0];
 
   // Load user's favorite listings
   useEffect(() => {
@@ -106,6 +193,36 @@ export default function GuestAccountPage() {
     };
 
     fetchFavorites();
+  }, [user]);
+
+  // Load active coupons for logged-in guests
+  useEffect(() => {
+    const loadCoupons = async () => {
+      if (!user) {
+        setCoupons([]);
+        setLoadingCoupons(false);
+        return;
+      }
+
+      try {
+        setLoadingCoupons(true);
+        setCouponError('');
+        const couponsRef = collection(db, 'coupons');
+        const qCoupons = query(couponsRef, where('active', '==', true));
+        const snap = await getDocs(qCoupons);
+        const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setCoupons(items);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('Error loading coupons', err);
+        setCouponError(err.message || 'Failed to load coupons.');
+        setCoupons([]);
+      } finally {
+        setLoadingCoupons(false);
+      }
+    };
+
+    loadCoupons();
   }, [user]);
 
   // Load and save wishlist preferences
@@ -182,7 +299,7 @@ export default function GuestAccountPage() {
         const q = query(
           listingsRef,
           where('category', 'in', combinedCategories),
-          where('published', '==', true)
+          where('status', '==', 'published'),
         );
         const snap = await getDocs(q);
         let listings = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -190,13 +307,59 @@ export default function GuestAccountPage() {
         // Exclude already booked listings
         listings = listings.filter((listing) => !bookedIds.includes(listing.id));
 
-        // Filter by top locations (substring match)
-        if (topLocations.length > 0) {
-          listings = listings.filter((listing) =>
-            topLocations.some((loc) =>
-              listing.location?.toLowerCase().includes(loc.toLowerCase())
-            )
-          );
+        // Further rank by amenities/rules/service fields vs wishlist preferences
+        const prefKeywords = buildPreferenceKeywords();
+
+        if (prefKeywords.length > 0) {
+          const scored = listings.map((listing) => {
+            const amenitiesList = normaliseListField(listing.amenities);
+            const rulesList = normaliseListField(listing.rules);
+            const serviceCategoryList = normaliseListField(listing.serviceCategory);
+            const serviceAreaList = normaliseListField(listing.serviceArea);
+            const serviceDurationList = normaliseListField(listing.serviceDuration);
+            const serviceTimeSlotsList = normaliseListField(listing.serviceTimeSlots);
+
+            const extraTextTokens = [];
+            if (listing.title && typeof listing.title === 'string') {
+              extraTextTokens.push(...listing.title.split(/[,/]/));
+            }
+            if (listing.description && typeof listing.description === 'string') {
+              extraTextTokens.push(...listing.description.split(/[,/]/));
+            }
+
+            const extraList = normaliseListField(extraTextTokens.join(','));
+
+            const combined = new Set([
+              ...amenitiesList,
+              ...rulesList,
+              ...serviceCategoryList,
+              ...serviceAreaList,
+              ...serviceDurationList,
+              ...serviceTimeSlotsList,
+              ...extraList,
+            ]);
+
+            let score = 0;
+            prefKeywords.forEach((kw) => {
+              combined.forEach((item) => {
+                if (item.includes(kw) || kw.includes(item)) {
+                  score += 1;
+                }
+              });
+            });
+
+            return { listing, score };
+          });
+
+          const positives = scored
+            .filter(({ score }) => score > 0)
+            .sort((a, b) => b.score - a.score);
+
+          // Only apply the score filter if at least one listing matches;
+          // otherwise keep the broader category-based recommendations.
+          if (positives.length > 0) {
+            listings = positives.map(({ listing, score }) => ({ ...listing, matchScore: score }));
+          }
         }
 
         setRecommendations(listings);
@@ -206,7 +369,7 @@ export default function GuestAccountPage() {
     };
 
     fetchRecommendations();
-  }, [bookings, wishlistPreferences, user]);
+  }, [bookings, wishlistPreferences, wishlistTags, user]);
 
   useEffect(() => {
     const fetchBookings = async () => {
@@ -453,9 +616,9 @@ export default function GuestAccountPage() {
   };
 
   const togglePreference = async (category) => {
-    const updated = wishlistPreferences.includes(category)
-      ? wishlistPreferences.filter((c) => c !== category)
-      : [...wishlistPreferences, category];
+    // Single-select: clicking a category makes it the only active one.
+    // (We keep at least one selected; clicking again keeps it active.)
+    const updated = [category];
 
     setWishlistPreferences(updated);
 
@@ -560,6 +723,7 @@ export default function GuestAccountPage() {
     { id: 'payments', label: 'Payments history', icon: '💸' },
     { id: 'wallet', label: 'Wallet', icon: '💼' },
     { id: 'messages', label: 'Messages', icon: '💬' },
+    { id: 'coupons', label: 'Coupons', icon: '🏷️' },
     { id: 'wishlist-prefs', label: 'Wishlist Preferences', icon: '🎯' },
     { id: 'wishlist', label: 'Favorites', icon: '❤️' },
   ];
@@ -567,7 +731,7 @@ export default function GuestAccountPage() {
   useEffect(() => {
     if (location.state && location.state.tab) {
       const desiredTab = location.state.tab;
-      const validIds = new Set(['profile', 'bookings', 'payments', 'wallet', 'messages', 'wishlist-prefs', 'wishlist']);
+      const validIds = new Set(['profile', 'bookings', 'payments', 'wallet', 'messages', 'coupons', 'wishlist-prefs', 'wishlist']);
       if (validIds.has(desiredTab)) {
         setTab(desiredTab);
       }
@@ -785,6 +949,48 @@ export default function GuestAccountPage() {
                           {message && <div className="text-sm text-gray-700 mt-2">{message}</div>}
                         </div>
                       </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {tab === 'coupons' && (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Available Coupons</h2>
+                  <p className="text-gray-600 mb-4">
+                    These coupon codes are offered by hosts. Enter a code during booking to apply its discount.
+                  </p>
+
+                  {couponError && (
+                    <div className="mb-3 px-3 py-2 rounded bg-red-50 border border-red-200 text-sm text-red-700">
+                      {couponError}
+                    </div>
+                  )}
+
+                  {loadingCoupons ? (
+                    <p className="text-sm text-gray-600">Loading coupons...</p>
+                  ) : coupons.length === 0 ? (
+                    <p className="text-sm text-gray-500">No coupons are available right now. Check back later.</p>
+                  ) : (
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden">
+                      <table className="min-w-full text-sm">
+                        <thead className="bg-gray-100 border-b border-gray-200">
+                          <tr>
+                            <th className="px-4 py-2 text-left font-medium text-gray-700">Code</th>
+                            <th className="px-4 py-2 text-left font-medium text-gray-700">Discount</th>
+                            <th className="px-4 py-2 text-left font-medium text-gray-700">Description</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {coupons.map((c) => (
+                            <tr key={c.id} className="border-b border-gray-100">
+                              <td className="px-4 py-2 font-mono text-sm">{c.code}</td>
+                              <td className="px-4 py-2">{typeof c.discountPercent === 'number' ? `${c.discountPercent}%` : ''}</td>
+                              <td className="px-4 py-2 text-gray-600">{c.description}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </div>
@@ -1615,56 +1821,58 @@ export default function GuestAccountPage() {
                     <div className="space-y-8">
                       <div>
                         <h3 className="text-lg font-semibold text-gray-900 mb-6">Choose your interests</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          {availableCategories.map((category) => (
-                            <div
-                              key={category.key}
-                              className={`relative p-6 rounded-lg border-2 transition ${
-                                wishlistPreferences.includes(category.key)
-                                  ? 'border-green-600 bg-green-50'
-                                  : 'border-gray-200 bg-white hover:border-green-400'
-                              }`}
-                            >
+                        <div className="flex flex-wrap gap-2 mb-4">
+                          {availableCategories.map((category) => {
+                            const selected = activeWishlistCategoryKey === category.key;
+                            return (
                               <button
+                                key={category.key}
                                 type="button"
                                 onClick={() => togglePreference(category.key)}
-                                className="flex items-center gap-3 mb-3"
+                                className={`px-3 py-1.5 text-xs rounded-full border transition flex items-center gap-2 whitespace-nowrap ${
+                                  selected
+                                    ? 'bg-green-100 border-green-500 text-green-800'
+                                    : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100'
+                                }`}
                               >
-                                <span className="flex items-center justify-center w-9 h-9 rounded-full bg-green-100">
-                                  {category.icon}
-                                </span>
-                                <span className="text-lg font-semibold text-gray-900">{category.label}</span>
+                                <span>{category.emoji}</span>
+                                <span className="font-medium">{category.label}</span>
                               </button>
-                              {wishlistPreferences.includes(category.key) && (
-                                <div className="absolute top-3 right-3 w-6 h-6 bg-green-600 rounded-full flex items-center justify-center">
-                                  <span className="text-white font-bold">✓</span>
-                                </div>
-                              )}
+                            );
+                          })}
+                        </div>
 
-                              {/* Suggested wishlist tags for this category */}
-                              {wishlistSuggestionOptions[category.key] && (
-                                <div className="mt-4 flex flex-wrap gap-2">
-                                  {wishlistSuggestionOptions[category.key].map((tag) => {
-                                    const active = (wishlistTags[category.key] || []).includes(tag);
-                                    return (
-                                      <button
-                                        key={tag}
-                                        type="button"
-                                        onClick={() => toggleWishlistTag(category.key, tag)}
-                                        className={`px-3 py-1 rounded-full text-xs font-medium border ${
-                                          active
-                                            ? 'bg-green-600 text-white border-green-600'
-                                            : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-green-400'
-                                        }`}
-                                      >
-                                        {tag}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          ))}
+                        {/* Single tag card that changes with the active category */}
+                        <div className="mt-4 space-y-4">
+                          <div className="flex flex-col gap-2">
+                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-2">
+                              <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-green-50">
+                                {activeWishlistCategory.emoji}
+                              </span>
+                              <span>{activeWishlistCategory.label} tags</span>
+                            </p>
+                            {wishlistSuggestionOptions[activeWishlistCategory.key] && (
+                              <div className="flex flex-wrap gap-2">
+                                {wishlistSuggestionOptions[activeWishlistCategory.key].map((tag) => {
+                                  const active = (wishlistTags[activeWishlistCategory.key] || []).includes(tag);
+                                  return (
+                                    <button
+                                      key={tag}
+                                      type="button"
+                                      onClick={() => toggleWishlistTag(activeWishlistCategory.key, tag)}
+                                      className={`px-2.5 py-1 rounded-full text-xs border transition whitespace-nowrap ${
+                                        active
+                                          ? 'bg-green-100 border-green-500 text-green-800'
+                                          : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100'
+                                      }`}
+                                    >
+                                      {tag}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -1718,6 +1926,13 @@ export default function GuestAccountPage() {
                                     {listing.discount > 0 && (
                                       <div className="absolute top-3 left-3 bg-red-600 text-white px-2 py-1 rounded text-sm font-bold">
                                         {listing.discount}% OFF
+                                      </div>
+                                    )}
+                                    {typeof listing.matchScore === 'number' && listing.matchScore > 0 && (
+                                      <div className="absolute top-3 right-3 bg-green-600/90 text-white px-2 py-1 rounded-full text-[10px] font-semibold shadow">
+                                        {listing.matchScore === 1
+                                          ? '1 wishlist match'
+                                          : `${listing.matchScore} wishlist matches`}
                                       </div>
                                     )}
                                   </div>

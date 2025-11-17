@@ -19,56 +19,34 @@ export default function HostMessagesPage() {
       return undefined;
     }
 
-    const fetchMessages = async () => {
-      try {
-        setLoading(true);
-        // First, get the host's listing IDs
-        const listingsRef = collection(db, 'listings');
-        const qListings = query(listingsRef, where('hostId', '==', user.uid));
-        const listingsSnap = await getDocs(qListings);
-        const listingIds = listingsSnap.docs.map((d) => d.id);
+    try {
+      setLoading(true);
+      const messagesRef = collection(db, 'messages');
+      const q = query(messagesRef, where('hostId', '==', user.uid));
 
-        if (listingIds.length === 0) {
+      const unsubscribe = onSnapshot(
+        q,
+        (snapshot) => {
+          const items = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+          setMessages(items);
+          setLoading(false);
+        },
+        (err) => {
+          // eslint-disable-next-line no-console
+          console.error('Error loading host messages', err);
           setMessages([]);
           setLoading(false);
-          return undefined;
-        }
+        },
+      );
 
-        // Now query messages for these listings
-        const messagesRef = collection(db, 'messages');
-        const q = query(messagesRef, where('listingId', 'in', listingIds));
-
-        const unsubscribe = onSnapshot(
-          q,
-          (snapshot) => {
-            const items = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
-            setMessages(items);
-            setLoading(false);
-          },
-          (err) => {
-            // eslint-disable-next-line no-console
-            console.error('Error loading host messages', err);
-            setMessages([]);
-            setLoading(false);
-          },
-        );
-
-        return () => unsubscribe();
-      } catch (err) {
-        // eslint-disable-next-line no-console
-        console.error('Error subscribing to host messages', err);
-        setMessages([]);
-        setLoading(false);
-        return undefined;
-      }
-    };
-
-    const unsubscribePromise = fetchMessages();
-    return () => {
-      unsubscribePromise.then((unsubscribe) => {
-        if (unsubscribe) unsubscribe();
-      });
-    };
+      return () => unsubscribe();
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Error subscribing to host messages', err);
+      setMessages([]);
+      setLoading(false);
+      return undefined;
+    }
   }, [user]);
 
   const conversations = useMemo(() => {
@@ -129,115 +107,192 @@ export default function HostMessagesPage() {
     }
   };
 
-  return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '70vh' }}>
-      <Typography variant="h4" gutterBottom>
-        Host Messages
-      </Typography>
-      <Box sx={{ display: 'flex', flex: 1, gap: 2 }}>
-        <Paper sx={{ width: 320, p: 2, display: 'flex', flexDirection: 'column' }}>
-          <Typography variant="subtitle1" gutterBottom>
-            Conversations
-          </Typography>
-          {loading ? (
-            <Typography variant="body2">Loading messages...</Typography>
-          ) : conversations.length === 0 ? (
-            <Typography variant="body2">You have no messages yet.</Typography>
-          ) : (
-            <List sx={{ flex: 1, overflowY: 'auto' }}>
-              {conversations.map((conv) => (
-                <ListItem key={conv.key} disablePadding>
-                  <ListItemButton
-                    selected={conv.key === selectedKey}
-                    onClick={() => setSelectedKey(conv.key)}
-                  >
-                    <ListItemText
-                      primary={conv.listingTitle}
-                      secondary={conv.guestEmail ? `Guest: ${conv.guestEmail}` : `Guest: ${conv.guestId}`}
-                    />
-                  </ListItemButton>
-                </ListItem>
-              ))}
-            </List>
-          )}
-        </Paper>
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendReply();
+    }
+  };
 
-        <Paper sx={{ flex: 1, p: 2, display: 'flex', flexDirection: 'column' }}>
-          {!selectedConversation ? (
-            <Typography variant="body2" color="text.secondary">
-              Select a conversation to view messages.
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        justifyContent: 'center',
+        px: 3,
+        py: 2,
+      }}
+    >
+      <Box sx={{ width: '100%', maxWidth: 1100 }}>
+        <Typography variant="h5" sx={{ mb: 1 }}>
+          Messages
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Chat with guests about your bookings.
+        </Typography>
+
+        <Paper
+          sx={{
+            display: 'flex',
+            minHeight: 320,
+            borderRadius: 2,
+            overflow: 'hidden',
+          }}
+        >
+          <Box
+            sx={{
+              width: 280,
+              borderRight: '1px solid #e5e7eb',
+              p: 2,
+              display: 'flex',
+              flexDirection: 'column',
+              bgcolor: '#f9fafb',
+            }}
+          >
+            <Typography variant="subtitle1" gutterBottom>
+              Conversations
             </Typography>
-          ) : (
-            <>
-              <Typography variant="subtitle1" gutterBottom>
-                Listing: {selectedConversation.listingTitle}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
-                Guest: {selectedConversation.guestId}
-              </Typography>
-              <Box sx={{ flex: 1, overflowY: 'auto', mb: 2, bgcolor: '#f9fafb', p: 1 }}>
-                {threadMessages.map((msg) => {
-                  const isHost = msg.senderRole === 'host' || msg.hostId === user?.uid;
-                  const createdAt = msg.createdAt?.toDate ? msg.createdAt.toDate() : null;
-                  return (
-                    <Box
-                      key={msg.id}
-                      sx={{
-                        display: 'flex',
-                        justifyContent: isHost ? 'flex-end' : 'flex-start',
-                        mb: 1,
-                      }}
+            {loading ? (
+              <Typography variant="body2">Loading messages...</Typography>
+            ) : conversations.length === 0 ? (
+              <Typography variant="body2">You have no messages yet.</Typography>
+            ) : (
+              <List sx={{ flex: 1, overflowY: 'auto', mt: 1 }}>
+                {conversations.map((conv) => (
+                  <ListItem key={conv.key} disablePadding>
+                    <ListItemButton
+                      selected={conv.key === selectedKey}
+                      onClick={() => setSelectedKey(conv.key)}
                     >
+                      <ListItemText
+                        primary={conv.listingTitle}
+                        secondary={
+                          conv.guestEmail
+                            ? `Guest: ${conv.guestEmail}`
+                            : `Guest: ${conv.guestId}`
+                        }
+                      />
+                    </ListItemButton>
+                  </ListItem>
+                ))}
+              </List>
+            )}
+          </Box>
+
+          <Box
+            sx={{
+              flex: 1,
+              p: 2,
+              display: 'flex',
+              flexDirection: 'column',
+              bgcolor: 'background.paper',
+            }}
+          >
+            {!selectedConversation ? (
+              <Box
+                sx={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Typography variant="body2" color="text.secondary">
+                  Select a conversation to view messages.
+                </Typography>
+              </Box>
+            ) : (
+              <>
+                <Box sx={{ mb: 1.5 }}>
+                  <Typography variant="subtitle1">
+                    {selectedConversation.listingTitle}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Guest: {selectedConversation.guestId}
+                  </Typography>
+                </Box>
+                <Box
+                  sx={{
+                    flex: 1,
+                    overflowY: 'auto',
+                    mb: 2,
+                    bgcolor: '#f9fafb',
+                    p: 2,
+                    borderRadius: 2,
+                  }}
+                >
+                  {threadMessages.map((msg) => {
+                    const isSender = msg.senderId === user?.uid;
+                    const createdAt = msg.createdAt?.toDate ? msg.createdAt.toDate() : null;
+                    return (
                       <Box
+                        key={msg.id}
                         sx={{
-                          maxWidth: '70%',
-                          px: 1.5,
-                          py: 1,
-                          borderRadius: 2,
-                          bgcolor: isHost ? 'primary.main' : 'background.paper',
-                          color: isHost ? 'primary.contrastText' : 'text.primary',
-                          border: isHost ? 'none' : '1px solid #e5e7eb',
+                          display: 'flex',
+                          justifyContent: isSender ? 'flex-end' : 'flex-start',
+                          mb: 2,
                         }}
                       >
-                        <Typography
-                          variant="body2"
-                          sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
-                        >
-                          {msg.text}
-                        </Typography>
-                        {createdAt && (
+                        <Box sx={{ maxWidth: '70%', display: 'flex', flexDirection: 'column' }}>
                           <Typography
                             variant="caption"
-                            sx={{ display: 'block', mt: 0.5, opacity: 0.7 }}
+                            sx={{ mb: 0.5, color: 'text.secondary', textAlign: isSender ? 'right' : 'left' }}
                           >
-                            {createdAt.toLocaleString()}
+                            {isSender ? 'You' : (msg.senderRole === 'host' ? 'Host' : 'Guest')}
                           </Typography>
-                        )}
+                          <Box
+                            sx={{
+                              px: 2,
+                              py: 1,
+                              borderRadius: isSender ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
+                              bgcolor: isSender ? 'primary.main' : 'background.paper',
+                              color: isSender ? 'primary.contrastText' : 'text.primary',
+                              border: isSender ? 'none' : '1px solid #e5e7eb',
+                              boxShadow: 1,
+                            }}
+                          >
+                            <Typography
+                              variant="body2"
+                              sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}
+                            >
+                              {msg.text}
+                            </Typography>
+                            {createdAt && (
+                              <Typography
+                                variant="caption"
+                                sx={{ display: 'block', mt: 0.5, opacity: 0.7, textAlign: 'right' }}
+                              >
+                                {createdAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </Typography>
+                            )}
+                          </Box>
+                        </Box>
                       </Box>
-                    </Box>
-                  );
-                })}
-              </Box>
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                <TextField
-                  value={replyText}
-                  onChange={(e) => setReplyText(e.target.value)}
-                  multiline
-                  minRows={2}
-                  fullWidth
-                  size="small"
-                  placeholder="Type a reply to the guest"
-                />
-                <Button
-                  variant="contained"
-                  onClick={handleSendReply}
-                  disabled={sending || !replyText.trim()}
-                >
-                  Send
-                </Button>
-              </Box>
-            </>
-          )}
+                    );
+                  })}
+                </Box>
+                <Box sx={{ display: 'flex', gap: 1 }}>
+                  <TextField
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    onKeyPress={handleKeyPress}
+                    multiline
+                    minRows={2}
+                    fullWidth
+                    size="small"
+                    placeholder="Type a reply to the guest"
+                  />
+                  <Button
+                    variant="contained"
+                    onClick={handleSendReply}
+                    disabled={sending || !replyText.trim()}
+                  >
+                    Send
+                  </Button>
+                </Box>
+              </>
+            )}
+          </Box>
         </Paper>
       </Box>
     </Box>

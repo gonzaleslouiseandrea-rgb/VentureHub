@@ -19,6 +19,7 @@ import {
   where,
   orderBy,
   onSnapshot,
+  getDocs,
 } from 'firebase/firestore';
 import { db } from '../firebase.js';
 import { useAuth } from '../auth/AuthContext.jsx';
@@ -38,6 +39,8 @@ export default function ListingDetailPage() {
   const [promoCode, setPromoCode] = useState('');
   const [discountApplied, setDiscountApplied] = useState(false);
   const [promoMessage, setPromoMessage] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+
   const [messageText, setMessageText] = useState('');
   const [messageError, setMessageError] = useState('');
   const [chatMessages, setChatMessages] = useState([]);
@@ -143,33 +146,81 @@ export default function ListingDetailPage() {
     const nights = calculateNights();
     if (!nights || !listing.rate) return 0;
     const subtotal = listing.rate * nights;
-    const effectiveDiscount = discountApplied ? (listing.discount || 0) : 0;
+    const effectiveDiscount = discountApplied && appliedCoupon
+      ? (appliedCoupon.discountPercent || 0)
+      : 0;
     const discountAmount = Math.round((subtotal * effectiveDiscount) / 100);
     const total = subtotal - discountAmount;
     return total > 0 ? total : 0;
   };
 
-  const handleApplyPromo = () => {
-    if (!listing || !listing.promo) {
-      setPromoMessage('No promo is configured for this listing.');
+  const handleApplyPromo = async () => {
+    if (!listing || !listing.hostId) {
+      setPromoMessage('This listing is not configured for coupons.');
       setDiscountApplied(false);
+      setAppliedCoupon(null);
       return;
     }
 
     if (!promoCode.trim()) {
       setPromoMessage('Enter a promo code.');
       setDiscountApplied(false);
+      setAppliedCoupon(null);
       return;
     }
 
-    const expected = String(listing.promo).trim().toLowerCase();
-    const entered = promoCode.trim().toLowerCase();
-    if (entered === expected) {
-      setDiscountApplied(true);
-      setPromoMessage('Promo applied.');
-    } else {
+    const nights = calculateNights();
+    if (!nights || !listing.rate) {
+      setPromoMessage('Select your dates first before applying a coupon.');
       setDiscountApplied(false);
-      setPromoMessage('Promo code not valid for this listing.');
+      setAppliedCoupon(null);
+      return;
+    }
+
+    try {
+      const couponsRef = collection(db, 'coupons');
+      const codeTrimmed = promoCode.trim().toUpperCase();
+      const qCoupons = query(
+        couponsRef,
+        where('hostId', '==', listing.hostId),
+        where('code', '==', codeTrimmed),
+        where('active', '==', true),
+      );
+      const snap = await getDocs(qCoupons);
+      if (snap.empty) {
+        setPromoMessage('Coupon code is not valid for this listing.');
+        setDiscountApplied(false);
+        setAppliedCoupon(null);
+        return;
+      }
+
+      const couponDoc = { id: snap.docs[0].id, ...snap.docs[0].data() };
+
+      const subtotal = listing.rate * nights;
+      const minAmount = typeof couponDoc.minAmount === 'number' ? couponDoc.minAmount : null;
+      if (minAmount && subtotal < minAmount) {
+        setPromoMessage(`Minimum booking amount of ₱${minAmount.toFixed(2)} is required for this coupon.`);
+        setDiscountApplied(false);
+        setAppliedCoupon(null);
+        return;
+      }
+
+      if (!couponDoc.discountPercent || couponDoc.discountPercent <= 0) {
+        setPromoMessage('This coupon has no discount configured.');
+        setDiscountApplied(false);
+        setAppliedCoupon(null);
+        return;
+      }
+
+      setAppliedCoupon(couponDoc);
+      setDiscountApplied(true);
+      setPromoMessage('Coupon applied.');
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Error applying coupon', err);
+      setPromoMessage('Unable to validate this coupon right now. Please try again.');
+      setDiscountApplied(false);
+      setAppliedCoupon(null);
     }
   };
 
@@ -517,19 +568,10 @@ export default function ListingDetailPage() {
                   <div>
                     <div className="flex items-center gap-2 mb-2">
                       <h1 className="text-3xl font-bold text-gray-900">{listing.title}</h1>
-                      {listing.discount > 0 && (
-                        <span className="bg-red-600 text-white px-2 py-1 rounded text-sm font-bold">
-                          {listing.discount}% OFF
-                        </span>
-                      )}
-                      {listing.promo && (
-                        <span className="bg-green-600 text-white px-2 py-1 rounded text-sm font-bold">
-                          {listing.promo}
-                        </span>
-                      )}
                     </div>
                     <p className="text-sm text-gray-600">{listing.location}</p>
                   </div>
+
                   <div className="flex flex-col items-end gap-2">
                     <div className="flex items-center gap-2">
                       <button
@@ -609,18 +651,6 @@ export default function ListingDetailPage() {
                     );
                   })()}
                 </div>
-
-                {listing.promo && (
-                  <section className="mb-6">
-                    <h2 className="text-xl font-semibold mb-2">Promo Code</h2>
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                      <p className="text-green-800 font-medium text-lg">{listing.promo}</p>
-                      <p className="text-green-600 text-sm mt-1">
-                        Use this code when booking to get special pricing
-                      </p>
-                    </div>
-                  </section>
-                )}
 
                 <section className="mb-6">
                   <h2 className="text-xl font-semibold mb-2">About this space</h2>
@@ -729,8 +759,8 @@ export default function ListingDetailPage() {
                       {(() => {
                         const nights = calculateNights();
                         const subtotal = listing.rate * nights;
-                        const effectiveDiscount = discountApplied
-                          ? listing.discount || 0
+                        const effectiveDiscount = discountApplied && appliedCoupon
+                          ? (appliedCoupon.discountPercent || 0)
                           : 0;
                         const discountAmount = Math.round(
                           (subtotal * effectiveDiscount) / 100,
@@ -746,15 +776,26 @@ export default function ListingDetailPage() {
                               <span>₱{subtotal.toLocaleString()}</span>
                             </div>
                             {effectiveDiscount > 0 && (
-                              <div className="flex justify-between text-red-600">
-                                <span>Discount ({effectiveDiscount}%)</span>
+                              <div className="flex justify-between text-red-600 mt-1">
+                                <span>
+                                  Coupon {appliedCoupon?.code || ''} ({effectiveDiscount}%)
+                                </span>
                                 <span>-₱{discountAmount.toLocaleString()}</span>
                               </div>
                             )}
-                            <div className="border-t border-gray-300 pt-2 flex justify-between font-semibold">
+                            <div className="border-t border-gray-300 pt-2 flex justify-between font-semibold mt-1">
                               <span>Total</span>
                               <span>₱{total.toLocaleString()}</span>
                             </div>
+                            {effectiveDiscount > 0 && appliedCoupon && (
+                              <p className="mt-1 text-[11px] text-gray-600">
+                                Coupon <span className="font-semibold">{appliedCoupon.code}</span> applied
+                                {typeof appliedCoupon.minAmount === 'number'
+                                  ? ` (min ₱${appliedCoupon.minAmount.toFixed(2)})`
+                                  : ''}
+                                .
+                              </p>
+                            )}
                           </>
                         );
                       })()}
@@ -794,9 +835,7 @@ export default function ListingDetailPage() {
                           type="text"
                           value={promoCode}
                           onChange={(e) => setPromoCode(e.target.value)}
-                          placeholder={
-                            listing.promo ? 'Enter code (optional)' : 'No promo available'
-                          }
+                          placeholder="Enter coupon code (optional)"
                           className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-1 focus:ring-green-500 text-sm"
                         />
                         <button
@@ -956,6 +995,7 @@ export default function ListingDetailPage() {
                           const createdAt = msg.createdAt?.toDate
                             ? msg.createdAt.toDate()
                             : null;
+                          const label = isGuest ? 'You' : 'Host';
                           return (
                             <div
                               key={msg.id}
@@ -963,21 +1003,26 @@ export default function ListingDetailPage() {
                                 isGuest ? 'justify-end' : 'justify-start'
                               }`}
                             >
-                              <div
-                                className={`max-w-[75%] rounded-lg px-3 py-2 text-xs ${
-                                  isGuest
-                                    ? 'bg-green-600 text-white rounded-br-none'
-                                    : 'bg-white border border-gray-200 text-gray-800 rounded-bl-none'
-                                }`}
-                              >
-                                <p className="whitespace-pre-wrap break-words">
-                                  {msg.text}
-                                </p>
-                                {createdAt && (
-                                  <p className="mt-1 text-[10px] opacity-70">
-                                    {createdAt.toLocaleString()}
+                              <div className="flex flex-col items-start max-w-[75%]">
+                                <span className="text-[10px] text-gray-500 mb-0.5">
+                                  {label}
+                                </span>
+                                <div
+                                  className={`w-full rounded-lg px-3 py-2 text-xs ${
+                                    isGuest
+                                      ? 'bg-green-600 text-white rounded-br-none'
+                                      : 'bg-white border border-gray-200 text-gray-800 rounded-bl-none'
+                                  }`}
+                                >
+                                  <p className="whitespace-pre-wrap break-words">
+                                    {msg.text}
                                   </p>
-                                )}
+                                  {createdAt && (
+                                    <p className="mt-1 text-[10px] opacity-70">
+                                      {createdAt.toLocaleString()}
+                                    </p>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           );

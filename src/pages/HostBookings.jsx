@@ -133,14 +133,13 @@ export default function HostBookingsPage() {
         const bookingDoc = bookings.find((b) => b.id === bookingId);
         if (bookingDoc) {
           const totalPrice = typeof bookingDoc.totalPrice === 'number' ? bookingDoc.totalPrice : 0;
-          const baseFeePercent = 15;
-          const effectiveFeePercent = await getEffectivePlatformFeePercent(bookingDoc.hostId, baseFeePercent);
-          const platformFeeAmount = Math.round(totalPrice * (effectiveFeePercent / 100));
-          const hostNetAmount = totalPrice - platformFeeAmount;
+          const platformFeePercent = 0;
+          const platformFeeAmount = 0;
+          const hostNetAmount = totalPrice;
 
           await updateDoc(bookingRef, {
             status,
-            platformFeePercent: effectiveFeePercent,
+            platformFeePercent,
             platformFeeAmount,
             hostNetAmount,
           });
@@ -162,11 +161,11 @@ export default function HostBookingsPage() {
           );
 
           // Award host points for this accepted booking
-          await awardHostPoints(bookingDoc.hostId, 20, 'completed_booking', {
+          await awardHostPoints(bookingDoc.hostId, 50, 'completed_booking', {
             bookingId,
             listingId: bookingDoc.listingId || null,
             totalPrice,
-            platformFeePercent: effectiveFeePercent,
+            platformFeePercent,
             platformFeeAmount,
             hostNetAmount,
           });
@@ -254,6 +253,32 @@ export default function HostBookingsPage() {
                     <Typography variant="body2" color="text.secondary" noWrap>
                       {booking.listing.location}
                     </Typography>
+
+                    {booking.listing.category === 'service' && (
+                      <>
+                        {booking.listing.serviceCategory && (
+                          <Typography variant="body2" color="text.secondary">
+                            Service: {booking.listing.serviceCategory}
+                          </Typography>
+                        )}
+                        {booking.listing.serviceArea && (
+                          <Typography variant="body2" color="text.secondary">
+                            Area: {booking.listing.serviceArea}
+                          </Typography>
+                        )}
+                        {booking.listing.serviceDuration && (
+                          <Typography variant="body2" color="text.secondary">
+                            Duration: {booking.listing.serviceDuration}
+                          </Typography>
+                        )}
+                        {booking.listing.serviceTimeSlots && (
+                          <Typography variant="body2" color="text.secondary">
+                            Time slots: {booking.listing.serviceTimeSlots}
+                          </Typography>
+                        )}
+                      </>
+                    )}
+
                     {booking.checkIn && booking.checkOut && (
                       <Typography variant="body2" sx={{ mt: 0.5 }}>
                         Dates: {booking.checkIn.toDate ? booking.checkIn.toDate().toLocaleDateString() : ''}

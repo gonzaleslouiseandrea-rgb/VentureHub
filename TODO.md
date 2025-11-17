@@ -1,12 +1,21 @@
-# TODO: Fix Guest Booking Issue
+# TODO: Implement Admin Side
 
-- [x] Investigate why guests can't book listings
-  - [x] Check if VITE_PAYPAL_CLIENT_ID is set in environment
-  - [x] Verify Firebase rules allow booking creation
-  - [x] Test booking flow in browser
-  - [x] Fix booking status and paid field in ListingDetail.jsx onApprove
-  - [x] Ensure consistent booking flow between initial booking and host acceptance
-- [x] Change button text from "Book with PayPal" to "Request to Book"
-- [x] Update success message to indicate booking request sent to host
-- [x] Limit guest count to what the host has set for the listing
-- [x] Improve promo code visibility by adding a dedicated section above the description
+## Steps to Complete
+
+- [ ] Create AdminLayout.jsx: Layout component for admin pages, similar to HostLayout.jsx.
+- [ ] Create AdminDashboard.jsx: Overview page with key metrics (total hosts, bookings, earnings, subscriptions).
+- [ ] Create AdminAnalytics.jsx: Analytics for reviews (best/lowest), bookings list, charts.
+- [ ] Create AdminReports.jsx: Page for generating and downloading reports (bookings, earnings, compliance).
+- [ ] Create AdminPayments.jsx: Manage payment methods, confirm/review payments.
+- [ ] Create AdminPolicies.jsx: Display policy & compliance rules, regulations, reports.
+- [ ] Update App.jsx: Add /admin/* routes with admin protection.
+- [ ] Implement admin role check: Use Firebase custom claims or simple email check for admin access.
+- [ ] Add Firebase queries: For hosts, bookings, reviews, payments collections.
+- [ ] Test admin access and data loading.
+
+## Followup Steps
+
+- [ ] Integrate payment provider if needed (e.g., Stripe for confirm/review).
+- [ ] Add export functionality for reports (CSV/PDF).
+- [ ] Handle edge cases: No data, loading states, errors.
+- [ ] Verify admin-only access.

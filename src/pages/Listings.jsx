@@ -28,17 +28,129 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 });
 
-const COMMON_AMENITIES = [
-  'WiFi',
-  'Parking',
-  'Air conditioning',
-  'Kitchen',
-  'TV',
-  'Washer',
-  'Dryer',
-  'Pool',
-  'Gym',
-  'Pet friendly',
+// Category-specific quick-pick options
+const LODGING_AMENITIES = [
+  'Free WiFi',
+  'Air conditioning / Heating',
+  'Private bathroom',
+  'Fresh linens and towels',
+  'Complimentary toiletries',
+  'Kitchen or kitchenette access',
+  'Refrigerator & basic cooking tools',
+  'Television / Smart TV',
+  'Workspace or desk area',
+  'On-site parking / street parking',
+  '24/7 security or gated entrance',
+  'Laundry facilities (shared or in-unit)',
+  'Outdoor seating area / balcony',
+  'Essentials: soap, shampoo, toilet paper',
+  'Drinking water or electric kettle',
+];
+
+const LODGING_RULES = [
+  'Check-in and check-out times must be followed',
+  'No smoking inside the property',
+  'No parties or loud gatherings',
+  'Keep noise to a minimum after 10 PM',
+  'Pets allowed only if the listing states so',
+  'Guests must report any damages immediately',
+  'Only registered guests may stay overnight',
+  'Maintain cleanliness throughout your stay',
+  'Follow building or community guidelines',
+  'Lost keys may incur an additional fee',
+];
+
+const SERVICE_AMENITIES = [
+  'Professional service provider',
+  'Necessary tools or equipment (service-specific)',
+  'Safety-checked materials and supplies',
+  'Transparent pricing before booking',
+  'Customer support for concerns',
+  'Optional add-ons (if applicable)',
+  'Satisfaction guarantee',
+  'Service report or summary (when applicable)',
+];
+
+const SERVICE_RULES = [
+  'Client must provide accurate location details',
+  'Service time may vary depending on conditions',
+  'Extra fees may apply for additional tasks not listed',
+  'Pets or obstacles should be secured before service',
+  'Client should ensure safe working space',
+  'Cancellations must follow the provider’s policy',
+  'Service provider has the right to refuse unsafe tasks',
+  'Any damages must be reported immediately',
+  'No harassment, discrimination, or abusive behavior',
+];
+
+const EXPERIENCE_AMENITIES = [
+  'Experienced guide or instructor',
+  'Safety equipment (helmets, life vests, etc., if needed)',
+  'Materials or supplies for the activity',
+  'Introductory orientation or briefing',
+  'Snacks or refreshments (if included)',
+  'Photos or souvenirs (depending on listing)',
+  'Transportation (if stated in listing)',
+  'Group or private session options',
+  'Printed or digital itinerary',
+];
+
+const EXPERIENCE_RULES = [
+  'Arrive at least 10–15 minutes before start time',
+  'Late arrivals may lose their slot',
+  'Follow all safety instructions and briefing',
+  'Wear appropriate clothing or gear',
+  'Guests must disclose any medical conditions (for safety activities)',
+  'Children must be supervised by adults',
+  'No reckless behavior during the activity',
+  'Cancellations depend on weather or safety conditions',
+  'Respect local customs, environment, and wildlife',
+  'Bring valid ID for check-in if required',
+];
+
+const SERVICE_CATEGORIES = [
+  'Beauty services',
+  'Cleaning services',
+  'Repair & maintenance',
+  'Event services',
+  'Transport & delivery',
+  'Coaching & tutoring',
+  'Health & wellness',
+  'Photography & media',
+  'Business services',
+];
+
+const SERVICE_AREAS = [
+  'Within 5km of host location',
+  'Within 10km of host location',
+  'Within 20km of host location',
+  'Metro area only',
+  'On-site at guest location',
+  'Online / remote only',
+];
+
+const SERVICE_DURATIONS = [
+  '30 minutes',
+  '1 hour',
+  '1.5 hours',
+  '2 hours',
+  '3 hours',
+  'Half day',
+  'Full day',
+];
+
+const SERVICE_AVAILABILITY_DAYS = [
+  'Weekdays (Mon–Fri)',
+  'Weekends (Sat–Sun)',
+  'Monday to Saturday',
+  'Every day',
+];
+
+const SERVICE_AVAILABILITY_RANGES = [
+  'Morning (8am–12pm)',
+  'Afternoon (12pm–5pm)',
+  'Evening (5pm–9pm)',
+  'Full day (8am–6pm)',
 ];
 
 function LocationMarker({ markerPosition, setMarkerPosition }) {
@@ -50,6 +162,49 @@ function LocationMarker({ markerPosition, setMarkerPosition }) {
 
   if (!markerPosition) return null;
   return <Marker position={markerPosition} />;
+}
+
+async function awardHostListingPoints(hostId, points, reason, metadata = {}) {
+  if (!hostId || !points) return;
+  try {
+    const hostRef = doc(db, 'hosts', hostId);
+    const hostSnap = await getDoc(hostRef);
+
+    let lifetime = 0;
+    let available = 0;
+    if (hostSnap.exists()) {
+      const data = hostSnap.data();
+      lifetime = (data.points && typeof data.points.lifetime === 'number') ? data.points.lifetime : 0;
+      available = (data.points && typeof data.points.available === 'number') ? data.points.available : 0;
+    }
+
+    const newLifetime = lifetime + points;
+    const newAvailable = available + points;
+
+    await setDoc(
+      hostRef,
+      {
+        points: {
+          lifetime: newLifetime,
+          available: newAvailable,
+        },
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true },
+    );
+
+    const eventsRef = collection(db, 'hostPointsEvents');
+    await addDoc(eventsRef, {
+      hostId,
+      points,
+      reason,
+      metadata,
+      createdAt: serverTimestamp(),
+    });
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to award listing points', err);
+  }
 }
 
 export default function HostListingsPage() {
@@ -72,6 +227,10 @@ export default function HostListingsPage() {
     availabilityStart: '',
     availabilityEnd: '',
     availabilityRange: '',
+    serviceCategory: '',
+    serviceArea: '',
+    serviceDuration: '',
+    serviceTimeSlots: '',
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -176,6 +335,49 @@ export default function HostListingsPage() {
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleQuickAdd = (field, value) => {
+    setForm((prev) => {
+      const current = prev[field] || '';
+      const parts = current
+        .split(',')
+        .map((p) => p.trim())
+        .filter((p) => p.length > 0);
+
+      let nextParts;
+      if (parts.includes(value)) {
+        nextParts = parts.filter((p) => p !== value);
+      } else {
+        nextParts = [...parts, value];
+      }
+
+      const next = nextParts.join(nextParts.length ? ', ' : '');
+      return { ...prev, [field]: next };
+    });
+  };
+
+  const handleSingleSelect = (field, value) => {
+    setForm((prev) => {
+      const current = (prev[field] || '').trim();
+      // Clicking the same value again will clear the selection
+      if (current === value) {
+        return { ...prev, [field]: '' };
+      }
+      return { ...prev, [field]: value };
+    });
+  };
+
+  const getAmenityOptionsForCategory = () => {
+    if (form.category === 'experience') return EXPERIENCE_AMENITIES;
+    if (form.category === 'service') return SERVICE_AMENITIES;
+    return LODGING_AMENITIES;
+  };
+
+  const getRuleOptionsForCategory = () => {
+    if (form.category === 'experience') return EXPERIENCE_RULES;
+    if (form.category === 'service') return SERVICE_RULES;
+    return LODGING_RULES;
+  };
+
   const handleAvailabilityRangeChange = (dates) => {
     const [start, end] = dates;
     setAvailabilityDates([start, end]);
@@ -207,6 +409,34 @@ export default function HostListingsPage() {
     const limited = files.slice(0, 5);
     setImageFiles(limited);
     setImagePreviews(limited.map((file) => URL.createObjectURL(file)));
+  };
+
+  const handleRemoveImage = (index) => {
+    // If we have new uploads in this session, operate on imageFiles/imagePreviews
+    if (imageFiles.length > 0 || imagePreviews.length > 0) {
+      setImageFiles((prev) => prev.filter((_, i) => i !== index));
+      setImagePreviews((prev) => prev.filter((_, i) => i !== index));
+      return;
+    }
+
+    // Otherwise operate on existing saved image URLs stored on the form
+    setForm((prev) => {
+      const current = Array.isArray(prev.images) ? prev.images : [];
+      const nextImages = current.filter((_, i) => i !== index);
+
+      let nextCover = prev.coverImage;
+      if (index === 0) {
+        nextCover = nextImages[0] || '';
+      } else if (!nextImages.includes(nextCover)) {
+        nextCover = nextImages[0] || '';
+      }
+
+      return {
+        ...prev,
+        images: nextImages,
+        coverImage: nextCover,
+      };
+    });
   };
 
   const handleLocationBlur = async () => {
@@ -295,6 +525,10 @@ export default function HostListingsPage() {
         listing.availabilityStart && listing.availabilityEnd
           ? `${listing.availabilityStart} to ${listing.availabilityEnd}`
           : '',
+      serviceCategory: listing.serviceCategory || '',
+      serviceArea: listing.serviceArea || '',
+      serviceDuration: listing.serviceDuration || '',
+      serviceTimeSlots: listing.serviceTimeSlots || '',
     });
     if (listing.availabilityStart || listing.availabilityEnd) {
       const startDate = listing.availabilityStart
@@ -330,6 +564,9 @@ export default function HostListingsPage() {
         status: 'published',
         updatedAt: serverTimestamp(),
       });
+      if (listing.hostId) {
+        await awardHostListingPoints(listing.hostId, 10, 'published_listing', { listingId: listing.id });
+      }
       const okMessage = 'Listing published.';
       setSuccess(okMessage);
       setError('');
@@ -476,6 +713,10 @@ export default function HostListingsPage() {
         maxGuests: form.maxGuests ? Number(form.maxGuests) : null,
         availabilityStart: form.availabilityStart || null,
         availabilityEnd: form.availabilityEnd || null,
+        serviceCategory: form.category === 'service' ? (form.serviceCategory || null) : null,
+        serviceArea: form.category === 'service' ? (form.serviceArea || null) : null,
+        serviceDuration: form.category === 'service' ? (form.serviceDuration || null) : null,
+        serviceTimeSlots: form.category === 'service' ? (form.serviceTimeSlots || null) : null,
         status,
         updatedAt: serverTimestamp(),
       };
@@ -492,10 +733,13 @@ export default function HostListingsPage() {
         );
       } else {
         const listingsRef = collection(db, 'listings');
-        await addDoc(listingsRef, {
+        const newDoc = await addDoc(listingsRef, {
           ...payload,
           createdAt: serverTimestamp(),
         });
+        if (status === 'published') {
+          await awardHostListingPoints(user.uid, 10, 'published_listing', { listingId: newDoc.id });
+        }
       }
 
       const okMessage = status === 'draft' ? 'Draft saved.' : 'Listing published.';
@@ -548,6 +792,10 @@ export default function HostListingsPage() {
         availabilityStart: '',
         availabilityEnd: '',
         availabilityRange: '',
+        serviceCategory: '',
+        serviceArea: '',
+        serviceDuration: '',
+        serviceTimeSlots: '',
       });
       setActiveStep(0);
       setEditingListingId(null);
@@ -607,13 +855,13 @@ export default function HostListingsPage() {
             <div className={`w-8 h-8 rounded-full mx-auto mb-1 flex items-center justify-center ${activeStep >= 1 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
               2
             </div>
-            <p className="text-sm">Pricing & Promo</p>
+            <p className="text-sm">Amenities & Rules</p>
           </div>
           <div className={`flex-1 text-center ${activeStep >= 2 ? 'text-blue-600' : 'text-gray-400'}`}>
             <div className={`w-8 h-8 rounded-full mx-auto mb-1 flex items-center justify-center ${activeStep >= 2 ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
               3
             </div>
-            <p className="text-sm">Details & Publish</p>
+            <p className="text-sm">Pricing & Publish</p>
           </div>
         </div>
         <div className="flex">
@@ -625,7 +873,7 @@ export default function HostListingsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6 place-items-center">
         <div className="col-span-12 max-w-4xl">
-          <div className="bg-white rounded-lg shadow p-3">
+          <div className="bg-white rounded-lg shadow p-3 min-h-[520px]">
             {error && (
               <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-2">
                 {error}
@@ -683,26 +931,40 @@ export default function HostListingsPage() {
                           <div
                             // eslint-disable-next-line react/no-array-index-key
                             key={idx}
-                            className={`w-18 h-18 rounded overflow-hidden border ${idx === 0 ? 'border-green-600 border-2' : 'border-gray-300'}`}
+                            className={`relative w-18 h-18 rounded overflow-hidden border ${idx === 0 ? 'border-green-600 border-2' : 'border-gray-300'}`}
                           >
                             <img
                               src={src}
                               alt={idx === 0 ? 'Cover preview' : 'Photo preview'}
                               className="w-full h-full object-cover"
                             />
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveImage(idx)}
+                              className="absolute top-0.5 right-0.5 bg-white/80 text-xs px-1 rounded-full border border-gray-300 hover:bg-red-50"
+                            >
+                              ×
+                            </button>
                           </div>
                         ))
                       : Array.isArray(form.images) && form.images.length > 0
                         ? form.images.map((url, idx) => (
                             <div
                               key={url}
-                              className={`w-18 h-18 rounded overflow-hidden border ${idx === 0 ? 'border-green-600 border-2' : 'border-gray-300'}`}
+                              className={`relative w-18 h-18 rounded overflow-hidden border ${idx === 0 ? 'border-green-600 border-2' : 'border-gray-300'}`}
                             >
                               <img
                                 src={url}
                                 alt={idx === 0 ? 'Cover preview' : 'Photo preview'}
                                 className="w-full h-full object-cover"
                               />
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveImage(idx)}
+                                className="absolute top-0.5 right-0.5 bg-white/80 text-xs px-1 rounded-full border border-gray-300 hover:bg-red-50"
+                              >
+                                ×
+                              </button>
                             </div>
                           ))
                         : null}
@@ -745,7 +1007,7 @@ export default function HostListingsPage() {
                   />
                 </div>
 
-                <div className="mt-8 border border-gray-300 rounded-lg overflow-hidden h-64 relative z-0">
+                <div className="mt-6 border border-gray-300 rounded-lg overflow-hidden h-56 max-w-md bg-white relative z-0">
                   <MapContainer
                     center={markerPosition || [14.5995, 120.9842]}
                     zoom={12}
@@ -763,7 +1025,7 @@ export default function HostListingsPage() {
                   </MapContainer>
                 </div>
 
-                <div className="mt-10 w-full relative z-10">
+                <div className="mt-6 w-full relative z-10 flex flex-col items-start">
                   <p className="text-sm font-semibold mb-2">Availability range</p>
                   <div className="mt-2 inline-block border border-gray-300 rounded-md p-3 bg-white">
                     <DatePicker
@@ -776,6 +1038,7 @@ export default function HostListingsPage() {
                       minDate={new Date()}
                       dateFormat="MMM dd"
                       monthsShown={1}
+                      calendarClassName="!text-xs"
                       renderCustomHeader={(headerProps) => (
                         <div className="flex items-center justify-between mb-2 px-1">
                           <button
@@ -803,13 +1066,84 @@ export default function HostListingsPage() {
                     Guests can only book within this date range.
                   </p>
                 </div>
+
+                {/* Draft saving for this step is handled by the shared footer button below */}
               </>
             )}
 
             {activeStep === 1 && (
               <>
+                <div className="mb-4 bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-semibold text-gray-800">Amenities</label>
+                    <span className="text-xs text-gray-500 capitalize">{form.category}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {getAmenityOptionsForCategory().map((amenity) => {
+                      const current = form.amenities || '';
+                      const selected = current
+                        .split(',')
+                        .map((p) => p.trim())
+                        .filter((p) => p.length > 0)
+                        .includes(amenity);
+                      return (
+                        <button
+                          key={amenity}
+                          type="button"
+                          className={`px-2.5 py-1 text-xs rounded-full border transition whitespace-nowrap ${
+                            selected
+                              ? 'bg-green-100 border-green-500 text-green-800'
+                              : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100'
+                          }`}
+                          onClick={() => handleQuickAdd('amenities', amenity)}
+                        >
+                          {amenity}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="mb-4 bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-semibold text-gray-800">House rules</label>
+                    <span className="text-xs text-gray-500 capitalize">{form.category}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {getRuleOptionsForCategory().map((rule) => {
+                      const current = form.rules || '';
+                      const selected = current
+                        .split(',')
+                        .map((p) => p.trim())
+                        .filter((p) => p.length > 0)
+                        .includes(rule);
+                      return (
+                        <button
+                          key={rule}
+                          type="button"
+                          className={`px-2.5 py-1 text-xs rounded-full border transition whitespace-nowrap ${
+                            selected
+                              ? 'bg-green-100 border-green-500 text-green-800'
+                              : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100'
+                          }`}
+                          onClick={() => handleQuickAdd('rules', rule)}
+                        >
+                          {rule}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+              </>
+            )}
+
+            {activeStep === 2 && (
+              <>
                 <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Nightly rate / base rate</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {form.category === 'service' ? 'Price per session / per hour' : 'Nightly rate / base rate'}
+                  </label>
                   <input
                     type="number"
                     name="rate"
@@ -818,32 +1152,151 @@ export default function HostListingsPage() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Promo discount (%)</label>
-                  <input
-                    type="number"
-                    name="discount"
-                    value={form.discount}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Promo code</label>
-                  <input
-                    type="text"
-                    name="promo"
-                    value={form.promo}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Guests can enter this code during booking to get the discount for this listing.</p>
-                </div>
-              </>
-            )}
 
-            {activeStep === 2 && (
-              <>
+                {form.category === 'service' && (
+                  <>
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Service category</label>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {SERVICE_CATEGORIES.map((opt) => {
+                          const selected = (form.serviceCategory || '').trim() === opt;
+                          return (
+                            <button
+                              key={opt}
+                              type="button"
+                              className={`px-2.5 py-1 text-xs rounded-full border transition whitespace-nowrap ${
+                                selected
+                                  ? 'bg-green-100 border-green-500 text-green-800'
+                                  : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100'
+                              }`}
+                              onClick={() => handleSingleSelect('serviceCategory', opt)}
+                            >
+                              {opt}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Service area / coverage</label>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {SERVICE_AREAS.map((opt) => {
+                          const selected = (form.serviceArea || '').trim() === opt;
+                          return (
+                            <button
+                              key={opt}
+                              type="button"
+                              className={`px-2.5 py-1 text-xs rounded-full border transition whitespace-nowrap ${
+                                selected
+                                  ? 'bg-green-100 border-green-500 text-green-800'
+                                  : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100'
+                              }`}
+                              onClick={() => handleSingleSelect('serviceArea', opt)}
+                            >
+                              {opt}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="mb-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Typical duration</label>
+                        <div className="flex flex-wrap gap-2 mt-2">
+                          {SERVICE_DURATIONS.map((opt) => {
+                            const current = form.serviceDuration || '';
+                            const parts = current
+                              .split(',')
+                              .map((p) => p.trim())
+                              .filter((p) => p.length > 0);
+                            const selected = parts.includes(opt);
+                            return (
+                              <button
+                                key={opt}
+                                type="button"
+                                className={`px-2.5 py-1 text-xs rounded-full border transition whitespace-nowrap ${
+                                  selected
+                                    ? 'bg-green-100 border-green-500 text-green-800'
+                                    : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100'
+                                }`}
+                                onClick={() => handleQuickAdd('serviceDuration', opt)}
+                              >
+                                {opt}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Availability time slots</label>
+                        <div className="mb-2">
+                          <p className="text-xs text-gray-500 mb-1">Days</p>
+                          <div className="flex flex-wrap gap-2">
+                            {SERVICE_AVAILABILITY_DAYS.map((opt) => {
+                              const current = form.serviceTimeSlots || '';
+                              const parts = current
+                                .split(',')
+                                .map((p) => p.trim())
+                                .filter((p) => p.length > 0);
+                              const selected = parts.includes(opt);
+                              return (
+                                <button
+                                  key={opt}
+                                  type="button"
+                                  className={`px-2.5 py-1 text-xs rounded-full border transition whitespace-nowrap ${
+                                    selected
+                                      ? 'bg-green-100 border-green-500 text-green-800'
+                                      : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100'
+                                  }`}
+                                  onClick={() => handleQuickAdd('serviceTimeSlots', opt)}
+                                >
+                                  {opt}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <div className="mb-2">
+                          <p className="text-xs text-gray-500 mb-1">Hour ranges</p>
+                          <div className="flex flex-wrap gap-2">
+                            {SERVICE_AVAILABILITY_RANGES.map((opt) => {
+                              const current = form.serviceTimeSlots || '';
+                              const parts = current
+                                .split(',')
+                                .map((p) => p.trim())
+                                .filter((p) => p.length > 0);
+                              const selected = parts.includes(opt);
+                              return (
+                                <button
+                                  key={opt}
+                                  type="button"
+                                  className={`px-2.5 py-1 text-xs rounded-full border transition whitespace-nowrap ${
+                                    selected
+                                      ? 'bg-green-100 border-green-500 text-green-800'
+                                      : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-100'
+                                  }`}
+                                  onClick={() => handleQuickAdd('serviceTimeSlots', opt)}
+                                >
+                                  {opt}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <input
+                          type="text"
+                          name="serviceTimeSlots"
+                          value={form.serviceTimeSlots}
+                          onChange={handleChange}
+                          placeholder="e.g. Mon–Fri 9am–6pm, Sat 10am–2pm"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    </div>
+                  </>
+                )}
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                   <textarea
@@ -854,38 +1307,8 @@ export default function HostListingsPage() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Amenities (comma-separated)</label>
-                  <input
-                    type="text"
-                    name="amenities"
-                    value={form.amenities}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Example: WiFi, Parking, Air conditioning</p>
-                </div>
-                <div className="mb-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">House rules</label>
-                  <textarea
-                    name="rules"
-                    value={form.rules}
-                    onChange={handleChange}
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Example: No smoking, No pets, Quiet hours after 10 PM</p>
-                </div>
 
                 <div className="flex gap-2 mt-2 flex-wrap">
-                  <button
-                    type="button"
-                    className="px-4 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50"
-                    disabled={saving}
-                    onClick={() => handleSave('draft')}
-                  >
-                    Save as draft
-                  </button>
                   <button
                     type="button"
                     className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 disabled:opacity-50"
@@ -899,7 +1322,7 @@ export default function HostListingsPage() {
             )}
 
             {/* Step navigation */}
-            <div className="flex justify-between mt-4">
+            <div className="flex justify-between items-center mt-4">
               <button
                 type="button"
                 className="px-4 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -908,15 +1331,27 @@ export default function HostListingsPage() {
               >
                 Back
               </button>
-              {activeStep < 2 && (
+
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700"
-                  onClick={() => setActiveStep((prev) => Math.min(prev + 1, 2))}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50"
+                  disabled={saving}
+                  onClick={() => handleSave('draft')}
                 >
-                  Next
+                  Save as draft
                 </button>
-              )}
+
+                {activeStep < 2 && (
+                  <button
+                    type="button"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700"
+                    onClick={() => setActiveStep((prev) => Math.min(prev + 1, 2))}
+                  >
+                    Next
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

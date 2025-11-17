@@ -16,7 +16,12 @@ export default function LandingPage() {
     const fetchFeatured = async () => {
       try {
         const listingsRef = collection(db, 'listings');
-        const q = query(listingsRef, whereFilter('status', '==', 'published'), limit(6));
+        const q = query(
+          listingsRef,
+          whereFilter('status', '==', 'published'),
+          whereFilter('category', '==', 'home'),
+          limit(6),
+        );
         const snap = await getDocs(q);
         const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         setFeaturedListings(items);
@@ -151,7 +156,9 @@ export default function LandingPage() {
             </p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {featuredListings.map((listing) => (
+              {featuredListings
+                .filter((listing) => (listing.category || '').toLowerCase() === 'home')
+                .map((listing) => (
                 <div
                   key={listing.id}
                   onClick={() => navigate(`/listing/${listing.id}`)}
@@ -200,7 +207,9 @@ export default function LandingPage() {
             </p>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {experienceListings.map((listing) => (
+              {experienceListings
+                .filter((listing) => (listing.category || '').toLowerCase() === 'experience')
+                .map((listing) => (
                 <div
                   key={listing.id}
                   onClick={() => navigate(`/listing/${listing.id}`)}

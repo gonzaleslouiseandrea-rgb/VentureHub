@@ -86,10 +86,16 @@ export default function BrowsePage() {
     const fetchListings = async () => {
       setLoading(true);
       try {
-        let q = collection(db, 'listings');
+        const baseRef = collection(db, 'listings');
+        let q;
+
         if (activeCategory === 'wishlist') {
           if (userWishlistCategories.length > 0) {
-            q = query(q, where('category', 'in', userWishlistCategories));
+            q = query(
+              baseRef,
+              where('status', '==', 'published'),
+              where('category', 'in', userWishlistCategories),
+            );
           } else {
             // If no wishlist categories, show no listings
             setListings([]);
@@ -97,8 +103,15 @@ export default function BrowsePage() {
             return;
           }
         } else if (activeCategory !== 'all') {
-          q = query(q, where('category', '==', activeCategory));
+          q = query(
+            baseRef,
+            where('status', '==', 'published'),
+            where('category', '==', activeCategory),
+          );
+        } else {
+          q = query(baseRef, where('status', '==', 'published'));
         }
+
         const snapshot = await getDocs(q);
         let items = snapshot.docs.map((docSnap) => ({ id: docSnap.id, ...docSnap.data() }));
         if (search) {
@@ -118,14 +131,13 @@ export default function BrowsePage() {
             });
           }
         }
-        const published = items.filter((item) => item.status === 'published');
-        setListings(published);
+        setListings(items);
 
         // Load ratings per listing
         try {
           const reviewsRef = collection(db, 'reviews');
           const ratingEntries = await Promise.all(
-            published.map(async (item) => {
+            items.map(async (item) => {
               const rq = query(reviewsRef, where('listingId', '==', item.id));
               const rsnap = await getDocs(rq);
               if (rsnap.empty) return [item.id, { avg: null, count: 0 }];

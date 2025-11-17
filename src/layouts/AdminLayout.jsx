@@ -14,7 +14,7 @@ import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '../firebase.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 
-export default function HostLayout() {
+export default function AdminLayout() {
   const { user, logout } = useAuth();
   const location = useLocation();
   const [showNotifications, setShowNotifications] = useState(false);
@@ -22,14 +22,11 @@ export default function HostLayout() {
   const [loadingNotifications, setLoadingNotifications] = useState(false);
 
   const navItems = [
-    { label: 'Dashboard', path: '/host/dashboard' },
-    { label: 'Listings', path: '/host/listings' },
-    { label: 'Bookings', path: '/host/bookings' },
-    { label: 'Coupons', path: '/host/coupons' },
-    { label: 'Refunds', path: '/host/refunds' },
-    { label: 'Plan', path: '/host/plan' },
-    { label: 'Messages', path: '/host/messages' },
-    { label: 'Calendar', path: '/host/calendar' },
+    { label: 'Dashboard', path: '/admin/dashboard' },
+    { label: 'Analytics', path: '/admin/analytics' },
+    { label: 'Reports', path: '/admin/reports' },
+    { label: 'Payments', path: '/admin/payments' },
+    { label: 'Policies', path: '/admin/policies' },
   ];
 
   useEffect(() => {
@@ -43,8 +40,9 @@ export default function HostLayout() {
         setLoadingNotifications(true);
         const items = [];
 
+        // Fetch all bookings for admin notifications
         const bookingsRef = collection(db, 'bookings');
-        const qb = query(bookingsRef, where('hostId', '==', user.uid));
+        const qb = query(bookingsRef);
         const bookingsSnap = await getDocs(qb);
         bookingsSnap.forEach((docSnap) => {
           const data = docSnap.data();
@@ -58,8 +56,9 @@ export default function HostLayout() {
           });
         });
 
+        // Fetch all refunds
         const refundsRef = collection(db, 'refunds');
-        const qr = query(refundsRef, where('hostId', '==', user.uid));
+        const qr = query(refundsRef);
         const refundsSnap = await getDocs(qr);
         refundsSnap.forEach((docSnap) => {
           const data = docSnap.data();
@@ -85,7 +84,7 @@ export default function HostLayout() {
         setNotifications(items);
       } catch (err) {
         // eslint-disable-next-line no-console
-        console.error('Error loading host notifications', err);
+        console.error('Error loading admin notifications', err);
         setNotifications([]);
       } finally {
         setLoadingNotifications(false);
@@ -101,7 +100,7 @@ export default function HostLayout() {
       <AppBar position="fixed" color="primary" elevation={1}>
         <Toolbar>
           <Typography variant="h6" noWrap component="div" sx={{ mr: 4 }}>
-            VentureHub Host
+            VentureHub Admin
           </Typography>
           <Box sx={{ display: 'flex', gap: 1, flexGrow: 1 }}>
             {navItems.map((item) => {
@@ -131,7 +130,7 @@ export default function HostLayout() {
                 color="inherit"
                 onClick={() => setShowNotifications((prev) => !prev)}
                 sx={{ ml: 1, borderRadius: '999px', border: '1px solid rgba(209,213,219,0.8)', bgcolor: showNotifications ? 'rgba(229,231,235,0.4)' : 'transparent' }}
-                aria-label="Host notifications"
+                aria-label="Admin notifications"
               >
                 <span role="img" aria-hidden="true" style={{ fontSize: 20 }}>
                   🔔
@@ -261,7 +260,7 @@ export default function HostLayout() {
                   </Box>
                   <Button
                     component={Link}
-                    to="/host/notifications"
+                    to="/admin/notifications"
                     sx={{
                       width: '100%',
                       borderRadius: 0,
@@ -279,9 +278,9 @@ export default function HostLayout() {
               <IconButton
                 color="inherit"
                 component={Link}
-                to="/host/account"
+                to="/admin/account"
                 sx={{ ml: 1 }}
-                aria-label="Host account settings"
+                aria-label="Admin account settings"
               >
                 <span role="img" aria-hidden="true">
                   ⚙️
@@ -297,7 +296,7 @@ export default function HostLayout() {
                     window.location.href = '/';
                   } catch (err) {
                     // eslint-disable-next-line no-console
-                    console.error('Error during host logout', err);
+                    console.error('Error during admin logout', err);
                   }
                 }}
               >
