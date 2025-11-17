@@ -1,3 +1,7 @@
+PS C:\Users\gonza\OneDrive\Desktop\web proj\venturehub> firebase deploy --only storage
+
+Error: Cannot understand what targets to deploy/serve. No targets in firebase.json match '--only storage'. If you are using PowerShell make sure you place quotes around any comma-separated lists (ex: --only "functions,firestore").
+PS C:\Users\gonza\OneDrive\Desktop\web proj\venturehub> 
 rules_version = '2';
 
 service firebase.storage {
