@@ -771,6 +771,38 @@ export default function HostListingsPage() {
                       onChange={handleAvailabilityRangeChange}
                       startDate={availabilityDates[0]}
                       endDate={availabilityDates[1]}
+                      selectsRange
+                      inline
+                      minDate={new Date()}
+                      dateFormat="MMM dd"
+                      monthsShown={1}
+                      renderCustomHeader={(headerProps) => (
+                        <div className="flex items-center justify-between mb-2 px-1">
+                          <button
+                            type="button"
+                            onClick={headerProps.decreaseMonth}
+                            className="text-xs px-2 py-1 border border-gray-300 rounded-full bg-white hover:bg-gray-100"
+                          >
+                            Prev
+                          </button>
+                          <span className="text-sm font-semibold text-gray-800">
+                            {headerProps.date.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={headerProps.increaseMonth}
+                            className="text-xs px-2 py-1 border border-gray-300 rounded-full bg-white hover:bg-gray-100"
+                          >
+                            Next
+                          </button>
+                        </div>
+                      )}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Guests can only book within this date range.
+                  </p>
+                </div>
               </>
             )}
 
