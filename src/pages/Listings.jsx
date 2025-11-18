@@ -1040,8 +1040,6 @@ export default function HostListingsPage() {
                       placeholderText="Select availability range"
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
                       calendarClassName="!text-xs"
-                      popperClassName="z-50"
-                      withPortal
                       renderCustomHeader={(headerProps) => (
                         <div className="flex items-center justify-between mb-2 px-1">
                           <button
