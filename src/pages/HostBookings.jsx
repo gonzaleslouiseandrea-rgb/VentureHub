@@ -285,151 +285,143 @@ export default function HostBookingsPage() {
             const isAccepted = booking.status === 'accepted';
             const isDeclined = booking.status === 'declined';
 
-const loadGuestWishlistSuggestions = async () => {
-  try {
-    const wishlistSuggestionsRef = collection(db, 'hostWishlistSuggestions');
-    const q = query(wishlistSuggestionsRef, where('hostId', '==', hostId));
-    const snap = await getDocs(q);
-    const wishlistByBooking = {};
-    snap.forEach((d) => {
-      const data = d.data();
-      const bookingId = data.bookingId;
-      if (!wishlistByBooking[bookingId]) wishlistByBooking[bookingId] = [];
-      wishlistByBooking[bookingId].push({ id: d.id, message: data.message });
-    });
-    return wishlistByBooking;
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error('Failed to load guest wishlist suggestions', err);
-    return {};
-  }
-};
+            let statusColor = 'default';
+            if (isAccepted) statusColor = 'success';
+            else if (isDeclined) statusColor = 'error';
+            else statusColor = 'warning';
 
-return (
-  <>
-    <Typography variant="h4" gutterBottom>
-      Bookings
-    </Typography>
-    <Typography variant="subtitle1" gutterBottom>
-      Booking requests for your listings.
-    </Typography>
+            return (
+              <Grid size={{ xs: 12 }} key={booking.id}>
+                <Paper
+                  sx={{
+                    p: 2,
+                    borderLeft: isAccepted
+                      ? '4px solid #2e7d32'
+                      : isDeclined
+                        ? '4px solid #c62828'
+                        : '4px solid #ed6c02',
+                    bgcolor: isAccepted
+                      ? 'rgba(46,125,50,0.04)'
+                      : isDeclined
+                        ? 'rgba(198,40,40,0.03)'
+                        : 'background.paper',
+                  }}
+                >
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                    <Chip
+                      size="small"
+                      color={statusColor}
+                      label={
+                        isAccepted
+                          ? 'Accepted booking'
+                          : isDeclined
+                            ? 'Declined booking'
+                            : booking.status || 'Pending request'
+                      }
+                    />
+                  </Box>
+                  {booking.listing ? (
+                    <>
+                      <Typography variant="h6" noWrap>
+                        {booking.listing.title}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" noWrap>
+                        {booking.listing.location}
+                      </Typography>
 
-    {loading ? (
-      <Typography variant="body2">Loading bookings...</Typography>
-    ) : bookings.length === 0 ? (
-      <Typography variant="body2">You have no booking requests yet.</Typography>
-    ) : (
-      <Grid container spacing={2} sx={{ mt: 1 }}>
-        {bookings.map((booking) => {
-          const isAccepted = booking.status === 'accepted';
-          const isDeclined = booking.status === 'declined';
+                      {booking.listing.category === 'service' && (
+                        <>
+                          {booking.listing.serviceCategory && (
+                            <Typography variant="body2" color="text.secondary">
+                              Service: {booking.listing.serviceCategory}
+                            </Typography>
+                          )}
+                          {booking.listing.serviceArea && (
+                            <Typography variant="body2" color="text.secondary">
+                              Area: {booking.listing.serviceArea}
+                            </Typography>
+                          )}
+                          {booking.listing.serviceDuration && (
+                            <Typography variant="body2" color="text.secondary">
+                              Duration: {booking.listing.serviceDuration}
+                            </Typography>
+                          )}
+                          {booking.listing.serviceTimeSlots && (
+                            <Typography variant="body2" color="text.secondary">
+                              Time slots: {booking.listing.serviceTimeSlots}
+                            </Typography>
+                          )}
+                        </>
+                      )}
 
-          let statusColor = 'default';
-          if (isAccepted) statusColor = 'success';
-          else if (isDeclined) statusColor = 'error';
-          else statusColor = 'warning';
+                      {booking.checkIn && booking.checkOut && (
+                        <Typography variant="body2" sx={{ mt: 0.5 }}>
+                          Dates: {' '}
+                          {booking.checkIn.toDate ? booking.checkIn.toDate().toLocaleDateString() : ''}
+                          {' '}–{' '}
+                          {booking.checkOut.toDate ? booking.checkOut.toDate().toLocaleDateString() : ''}
+                        </Typography>
+                      )}
+                      {booking.guestCount && (
+                        <Typography variant="body2">
+                          Guests: {booking.guestCount}
+                        </Typography>
+                      )}
+                      {typeof booking.totalPrice === 'number' && (
+                        <Typography variant="body2">
+                          Total: ₱{booking.totalPrice.toFixed(2)}
+                        </Typography>
+                      )}
 
-          return (
-            <Grid size={{ xs: 12 }} key={booking.id}>
-              <Paper
-                sx={{
-                  p: 2,
-                  borderLeft: isAccepted ? '4px solid #2e7d32' : isDeclined ? '4px solid #c62828' : '4px solid #ed6c02',
-                  bgcolor: isAccepted ? 'rgba(46,125,50,0.04)' : isDeclined ? 'rgba(198,40,40,0.03)' : 'background.paper',
-                }}
-              >
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                  <Chip
-                    size="small"
-                    color={statusColor}
-                    label={
-                      isAccepted
-                        ? 'Accepted booking'
-                        : isDeclined
-                          ? 'Declined booking'
-                          : (booking.status || 'Pending request')
-                    }
-                  />
-                </Box>
-                {booking.listing ? (
-                  <>
-                    <Typography variant="h6" noWrap>
-                      {booking.listing.title}
+                      {wishlistByBooking[booking.id] && wishlistByBooking[booking.id].length > 0 && (
+                        <Box
+                          sx={{
+                            mt: 1.5,
+                            p: 1.5,
+                            bgcolor: 'rgba(25,118,210,0.03)',
+                            borderRadius: 1,
+                            border: '1px solid rgba(25,118,210,0.2)',
+                          }}
+                        >
+                          <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
+                            Guest wishlist / suggestions
+                          </Typography>
+                          {wishlistByBooking[booking.id].map((w) => (
+                            <Typography key={w.id} variant="body2" sx={{ mt: 0.5 }}>
+                              • {w.message}
+                            </Typography>
+                          ))}
+                        </Box>
+                      )}
+                    </>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary">
+                      Listing no longer available.
                     </Typography>
-                    <Typography variant="body2" color="text.secondary" noWrap>
-                      {booking.listing.location}
-                    </Typography>
+                  )}
 
-                    {booking.listing.category === 'service' && (
-                      <>
-                        {booking.listing.serviceCategory && (
-                          <Typography variant="body2" color="text.secondary">
-                            Service: {booking.listing.serviceCategory}
-                          </Typography>
-                        )}
-                        {booking.listing.serviceArea && (
-                          <Typography variant="body2" color="text.secondary">
-                            Area: {booking.listing.serviceArea}
-                          </Typography>
-                        )}
-                        {booking.listing.serviceDuration && (
-                          <Typography variant="body2" color="text.secondary">
-                            Duration: {booking.listing.serviceDuration}
-                          </Typography>
-                        )}
-                        {booking.listing.serviceTimeSlots && (
-                          <Typography variant="body2" color="text.secondary">
-                            Time slots: {booking.listing.serviceTimeSlots}
-                          </Typography>
-                        )}
-                      </>
-                    )}
-
-                    {booking.checkIn && booking.checkOut && (
-                      <Typography variant="body2" sx={{ mt: 0.5 }}>
-                        Dates: {booking.checkIn.toDate ? booking.checkIn.toDate().toLocaleDateString() : ''}
-                        {' '}–{' '}
-                        {booking.checkOut.toDate ? booking.checkOut.toDate().toLocaleDateString() : ''}
-                      </Typography>
-                    )}
-                    {booking.guestCount && (
-                      <Typography variant="body2">
-                        Guests: {booking.guestCount}
-                      </Typography>
-                    )}
-                    {typeof booking.totalPrice === 'number' && (
-                      <Typography variant="body2">
-                        Total: ₱{booking.totalPrice.toFixed(2)}
-                      </Typography>
-                    )}
-                  </>
-                ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    Listing no longer available.
-                  </Typography>
-                )}
-                <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
-                  <Button
-                    size="small"
-                    variant="contained"
-                    color="success"
-                    disabled={updatingId === booking.id || booking.status === 'accepted'}
-                    onClick={() => handleUpdateStatus(booking.id, 'accepted')}
-                  >
-                    Accept
-                  </Button>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    color="error"
-                    disabled={updatingId === booking.id || booking.status === 'declined'}
-                    onClick={() => handleUpdateStatus(booking.id, 'declined')}
-                  >
-                    Decline
-                  </Button>
-                </Box>
-              </Paper>
-            </Grid>
+                  <Box sx={{ mt: 2, display: 'flex', gap: 1 }}>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      color="success"
+                      disabled={updatingId === booking.id || booking.status === 'accepted'}
+                      onClick={() => handleUpdateStatus(booking.id, 'accepted')}
+                    >
+                      Accept
+                    </Button>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="error"
+                      disabled={updatingId === booking.id || booking.status === 'declined'}
+                      onClick={() => handleUpdateStatus(booking.id, 'declined')}
+                    >
+                      Decline
+                    </Button>
+                  </Box>
+                </Paper>
+              </Grid>
             );
           })}
         </Grid>
@@ -451,4 +443,6 @@ return (
       </Snackbar>
     </>
   );
-}
+};
+
+export default HostBookingsPage;
