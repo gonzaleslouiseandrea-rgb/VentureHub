@@ -205,6 +205,7 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
                 placeholder="••••••••"
+                autoComplete="current-password"
                 required
               />
             </div>

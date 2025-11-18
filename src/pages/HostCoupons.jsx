@@ -8,7 +8,15 @@ export default function HostCouponsPage() {
   const [coupons, setCoupons] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [form, setForm] = useState({ code: '', discountPercent: '', minAmount: '', description: '', category: 'all' });
+  const [form, setForm] = useState({
+    code: '',
+    discountPercent: '',
+    minAmount: '',
+    description: '',
+    category: 'all',
+    validFrom: '',
+    validUntil: '',
+  });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -62,6 +70,10 @@ export default function HostCouponsPage() {
       const discountPercent = Number(form.discountPercent) || 0;
       const minAmount = Number(form.minAmount) || 0;
       const category = form.category || 'all';
+
+      const validFrom = form.validFrom ? new Date(form.validFrom) : null;
+      const validUntil = form.validUntil ? new Date(form.validUntil) : null;
+
       const payload = {
         hostId: user.uid,
         code: form.code.trim().toUpperCase(),
@@ -71,10 +83,20 @@ export default function HostCouponsPage() {
         category,
         active: true,
         createdAt: serverTimestamp(),
+        ...(validFrom && { validFrom }),
+        ...(validUntil && { validUntil }),
       };
       const ref = await addDoc(couponsRef, payload);
       setCoupons((prev) => [...prev, { id: ref.id, ...payload }]);
-      setForm({ code: '', discountPercent: '', minAmount: '', description: '', category: 'all' });
+      setForm({
+        code: '',
+        discountPercent: '',
+        minAmount: '',
+        description: '',
+        category: 'all',
+        validFrom: '',
+        validUntil: '',
+      });
     } catch (err) {
       setError(err.message || 'Failed to create coupon');
     } finally {
@@ -105,7 +127,7 @@ export default function HostCouponsPage() {
         </div>
       )}
 
-      <form onSubmit={handleCreate} className="mb-6 grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
+      <form onSubmit={handleCreate} className="mb-6 grid grid-cols-1 md:grid-cols-7 gap-3 items-end">
         <div className="md:col-span-2">
           <label className="block text-sm font-medium text-gray-700 mb-1">Code</label>
           <div className="flex gap-2">
@@ -170,6 +192,26 @@ export default function HostCouponsPage() {
           </select>
         </div>
         <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Valid from</label>
+          <input
+            type="date"
+            name="validFrom"
+            value={form.validFrom}
+            onChange={handleChange}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Valid until</label>
+          <input
+            type="date"
+            name="validUntil"
+            value={form.validUntil}
+            onChange={handleChange}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          />
+        </div>
+        <div>
           <button
             type="submit"
             disabled={saving}
@@ -196,6 +238,7 @@ export default function HostCouponsPage() {
                 <th className="px-4 py-2 text-left font-medium text-gray-700">Min amount</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-700">Description</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-700">Category</th>
+                <th className="px-4 py-2 text-left font-medium text-gray-700">Valid dates</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-700">Status</th>
                 <th className="px-4 py-2"></th>
               </tr>
@@ -214,6 +257,17 @@ export default function HostCouponsPage() {
                     {c.category === 'experience' && 'Experiences'}
                     {c.category === 'service' && 'Services'}
                     {!c.category || c.category === 'all' ? 'All listings' : null}
+                  </td>
+                  <td className="px-4 py-2 text-gray-600">
+                    {(() => {
+                      const from = c.validFrom?.toDate ? c.validFrom.toDate() : null;
+                      const until = c.validUntil?.toDate ? c.validUntil.toDate() : null;
+                      if (!from && !until) return '—';
+                      const format = (d) => d.toLocaleDateString();
+                      if (from && until) return `${format(from)} – ${format(until)}`;
+                      if (from) return `From ${format(from)}`;
+                      return `Until ${format(until)}`;
+                    })()}
                   </td>
                   <td className="px-4 py-2">
                     {c.active ? (

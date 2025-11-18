@@ -155,6 +155,34 @@ export default function ListingDetailPage() {
     return total > 0 ? total : 0;
   };
 
+  const normaliseDate = (value) => {
+    if (!value) return null;
+    if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+    if (typeof value === 'string') {
+      const d = new Date(value);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+    if (typeof value === 'object' && value.toDate) {
+      const d = value.toDate();
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+    return null;
+  };
+
+  const isCouponValidForStay = (coupon, stayStart, stayEnd) => {
+    const fromRaw = coupon.validFrom || coupon.validFromRaw;
+    const untilRaw = coupon.validUntil || coupon.validUntilRaw;
+    const from = normaliseDate(fromRaw);
+    const until = normaliseDate(untilRaw);
+
+    if (!from && !until) return true;
+    if (!stayStart || !stayEnd) return true;
+
+    if (from && stayEnd < from) return false;
+    if (until && stayStart > until) return false;
+    return true;
+  };
+
   const handleApplyPromo = async () => {
     if (!listing || !listing.hostId) {
       setPromoMessage('This listing is not configured for coupons.');
@@ -211,6 +239,15 @@ export default function ListingDetailPage() {
       const minAmount = typeof couponDoc.minAmount === 'number' ? couponDoc.minAmount : null;
       if (minAmount && subtotal < minAmount) {
         setPromoMessage(`Minimum booking amount of ₱${minAmount.toFixed(2)} is required for this coupon.`);
+        setDiscountApplied(false);
+        setAppliedCoupon(null);
+        return;
+      }
+
+      const stayStart = normaliseDate(checkIn);
+      const stayEnd = normaliseDate(checkOut);
+      if (!isCouponValidForStay(couponDoc, stayStart, stayEnd)) {
+        setPromoMessage('This coupon is not valid for your selected dates.');
         setDiscountApplied(false);
         setAppliedCoupon(null);
         return;
@@ -342,12 +379,22 @@ export default function ListingDetailPage() {
         const snap = await getDocs(qCoupons);
         const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-        // Filter by category match: either coupon is for all, or matches listing.category
         const listingCategory = (listing.category || '').toLowerCase();
+        const today = new Date();
+
         const filtered = items.filter((c) => {
           const cat = (c.category || 'all').toLowerCase();
-          if (cat === 'all') return true;
-          return cat === listingCategory;
+          if (!(cat === 'all' || cat === listingCategory)) return false;
+
+          const fromRaw = c.validFrom || c.validFromRaw;
+          const untilRaw = c.validUntil || c.validUntilRaw;
+          const from = normaliseDate(fromRaw);
+          const until = normaliseDate(untilRaw);
+
+          if (!from && !until) return true;
+          if (from && today < from) return false;
+          if (until && today > until) return false;
+          return true;
         });
 
         setAvailableCoupons(filtered);
@@ -770,6 +817,7 @@ export default function ListingDetailPage() {
                               startDate={checkIn}
                               endDate={checkOut}
                               selectsRange
+                              monthsShown={1}
                               minDate={min}
                               maxDate={max || undefined}
                               dateFormat="MMM dd"

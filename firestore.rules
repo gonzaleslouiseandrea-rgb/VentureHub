@@ -12,11 +12,15 @@ service cloud.firestore {
       return isSignedIn() && resource.data[userIdField] == request.auth.uid;
     }
 
-    // USERS: own profile
+    // USERS: basic profile + verification
     match /users/{userId} {
-      allow read: if isSignedIn() && request.auth.uid == userId;
+      // Allow reads for verification flows (OTP / email links) even when not signed in
+      allow read: if true;
+
+      // Signed-in user can create/update their own profile
       allow create: if isSignedIn() && request.auth.uid == userId;
-      allow update: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn() && request.auth.uid == userId
+                     || !isSignedIn();
       // no delete from client by default
     }
 
