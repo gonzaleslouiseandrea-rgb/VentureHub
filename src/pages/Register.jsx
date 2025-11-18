@@ -222,6 +222,7 @@ export default function RegisterPage() {
                 onChange={handleChange}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
                 placeholder="John Doe"
+                autoComplete="name"
                 required
               />
             </div>
@@ -234,7 +235,7 @@ export default function RegisterPage() {
                 onChange={handleChange}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
                 placeholder="you@example.com"
-                autoComplete="email"
+                autoComplete="username"
                 required
               />
             </div>
@@ -260,6 +261,7 @@ export default function RegisterPage() {
                 onChange={handleChange}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500"
                 placeholder="+1 (555) 123-4567"
+                autoComplete="tel"
               />
             </div>
             <button

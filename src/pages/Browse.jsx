@@ -30,7 +30,7 @@ export default function BrowsePage() {
 
   const [activeCategory, setActiveCategory] = useState('all');
   const [userWishlistCategories, setUserWishlistCategories] = useState([]);
-  
+
   // Parse query params and initialize state
   const initialWhere = searchParams.get('where') || '';
   const [search, setSearch] = useState(initialWhere);
@@ -48,6 +48,12 @@ export default function BrowsePage() {
   const [loading, setLoading] = useState(true);
   const [ratings, setRatings] = useState({});
   const [snack, setSnack] = useState({ open: false, message: '', severity: 'info' });
+
+  // Keep local search term in sync with URL query (?where=...)
+  useEffect(() => {
+    const whereParam = searchParams.get('where') || '';
+    setSearch(whereParam);
+  }, [searchParams]);
 
   // Only show wishlist category for logged-in users
   const visibleCategories = user

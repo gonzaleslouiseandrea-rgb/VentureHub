@@ -1027,17 +1027,18 @@ export default function HostListingsPage() {
 
                 <div className="mt-6 w-full relative z-10 flex flex-col items-start">
                   <p className="text-sm font-semibold mb-2">Availability range</p>
-                  <div className="mt-2 inline-block border border-gray-300 rounded-md p-3 bg-white">
+                  <div className="mt-2 w-full max-w-xs">
                     <DatePicker
                       selected={availabilityDates[0]}
                       onChange={handleAvailabilityRangeChange}
                       startDate={availabilityDates[0]}
                       endDate={availabilityDates[1]}
                       selectsRange
-                      inline
                       minDate={new Date()}
                       dateFormat="MMM dd"
                       monthsShown={1}
+                      placeholderText="Select availability range"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
                       calendarClassName="!text-xs"
                       renderCustomHeader={(headerProps) => (
                         <div className="flex items-center justify-between mb-2 px-1">
