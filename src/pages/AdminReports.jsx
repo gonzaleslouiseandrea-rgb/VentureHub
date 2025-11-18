@@ -7,6 +7,8 @@ export default function AdminReportsPage() {
   const [reportData, setReportData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
 
   const generateReport = async () => {
     setLoading(true);
@@ -85,6 +87,7 @@ export default function AdminReportsPage() {
     };
 
     const title = titleMap[reportType] || 'Report';
+    const generatedAt = new Date().toLocaleString();
 
     const html = `<!DOCTYPE html>
 <html>
@@ -93,17 +96,29 @@ export default function AdminReportsPage() {
     <title>${title}</title>
     <style>
       body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 24px; background: #f9fafb; color: #111827; }
-      h1 { font-size: 20px; margin-bottom: 4px; }
+      .vh-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+      .vh-brand { font-size: 18px; font-weight: 700; color: #16a34a; }
+      .vh-meta { font-size: 11px; color: #6b7280; text-align: right; }
+      h1 { font-size: 20px; margin: 4px 0 2px 0; }
       p { font-size: 12px; margin-top: 0; color: #6b7280; }
-      table { border-collapse: collapse; width: 100%; margin-top: 16px; }
+      hr { border: 0; border-top: 1px solid #e5e7eb; margin: 12px 0 16px 0; }
+      table { border-collapse: collapse; width: 100%; margin-top: 4px; }
       @media print {
         body { background: #ffffff; }
       }
     </style>
   </head>
   <body>
+    <div class="vh-header">
+      <div class="vh-brand">VentureHub Admin</div>
+      <div class="vh-meta">
+        <div>${title}</div>
+        <div>Generated: ${generatedAt}</div>
+      </div>
+    </div>
     <h1>${title}</h1>
-    <p>Generated from VentureHub admin panel.</p>
+    <p>Platform report exported from VentureHub admin panel.</p>
+    <hr />
     <table>
       <thead>
         <tr>${headerCells}</tr>
@@ -127,12 +142,47 @@ export default function AdminReportsPage() {
     }, 300);
   };
 
-  const getFilteredData = () => {
-    if (reportType !== 'bookings' || statusFilter === 'all') return reportData;
+  const getRowDate = (row) => {
+    const raw = row.createdAt;
+    if (!raw) return null;
+    if (raw.toDate && typeof raw.toDate === 'function') {
+      return raw.toDate();
+    }
+    if (raw.seconds && typeof raw.seconds === 'number') {
+      return new Date(raw.seconds * 1000);
+    }
+    // Fallback: try Date constructor
+    const d = new Date(raw);
+    // eslint-disable-next-line no-restricted-globals
+    return Number.isNaN(d.getTime()) ? null : d;
+  };
 
-    return reportData.filter((row) => {
+  const getFilteredData = () => {
+    let filtered = [...reportData];
+
+    // Apply date range filter for all report types
+    if (startDate || endDate) {
+      const start = startDate ? new Date(`${startDate}T00:00:00`) : null;
+      const end = endDate ? new Date(`${endDate}T23:59:59`) : null;
+
+      filtered = filtered.filter((row) => {
+        const d = getRowDate(row);
+        if (!d) return false;
+        if (start && d < start) return false;
+        if (end && d > end) return false;
+        return true;
+      });
+    }
+
+    // Extra status filter for bookings report only
+    if (reportType !== 'bookings' || statusFilter === 'all') return filtered;
+
+    return filtered.filter((row) => {
       const status = (row.status || '').toString().toLowerCase();
-      if (!status) return false;
+      // If no explicit status on the booking, treat as pending so it still shows
+      if (!status) {
+        return statusFilter === 'pending';
+      }
 
       if (statusFilter === 'completed') {
         return status === 'confirmed' || status === 'completed';
@@ -180,6 +230,22 @@ export default function AdminReportsPage() {
                 <option value="declined">Declined</option>
               </select>
             )}
+            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
+              <span className="font-semibold mr-1">Date range:</span>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="border border-gray-300 rounded px-2 py-1"
+              />
+              <span>to</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="border border-gray-300 rounded px-2 py-1"
+              />
+            </div>
             <button
               onClick={generateReport}
               className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
