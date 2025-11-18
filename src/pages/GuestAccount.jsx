@@ -796,6 +796,7 @@ export default function GuestAccountPage() {
     { id: 'coupons', label: 'Coupons', icon: '🏷️' },
     { id: 'wishlist-prefs', label: 'Wishlist Preferences', icon: '🎯' },
     { id: 'wishlist', label: 'Favorites', icon: '❤️' },
+    { id: 'reviews', label: 'My Reviews', icon: '⭐' },
   ];
 
   useEffect(() => {
@@ -2103,6 +2104,57 @@ export default function GuestAccountPage() {
                           )}
                         </div>
                       )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {tab === 'reviews' && (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-6">My Reviews</h2>
+
+                  {loadingReviews ? (
+                    <p className="text-gray-600">Loading your reviews...</p>
+                  ) : reviews.length === 0 ? (
+                    <div className="text-center py-12">
+                      <p className="text-gray-600 mb-4">You haven't left any reviews yet.</p>
+                      <button
+                        onClick={() => navigate('/browse')}
+                        className="inline-block px-6 py-2 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition"
+                      >
+                        Browse Stays
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {reviews.map((review) => (
+                        <div
+                          key={review.id}
+                          className="bg-gray-50 border border-gray-200 rounded-lg p-5"
+                        >
+                          <div className="flex justify-between items-start mb-3">
+                            <div>
+                              <h4 className="font-semibold text-gray-900">
+                                {review.listingTitle || 'Listing'}
+                              </h4>
+                              <div className="flex items-center gap-1 mt-1">
+                                {[...Array(5)].map((_, i) => (
+                                  <span
+                                    key={i}
+                                    className={`text-lg ${i < review.rating ? 'text-yellow-400' : 'text-gray-300'}`}
+                                  >
+                                    ★
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                            <span className="text-sm text-gray-500">
+                              {review.createdAt?.toDate ? review.createdAt.toDate().toLocaleDateString() : ''}
+                            </span>
+                          </div>
+                          <p className="text-gray-700">{review.comment}</p>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>

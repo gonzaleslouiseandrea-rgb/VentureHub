@@ -51,9 +51,11 @@ export async function sendBookingDetails(email, fullName, bookingDetails) {
   });
 }
 
-// Send refund notification email via EmailJS
+// Send refund / cancellation notification email via EmailJS.
+// This intentionally reuses the OTP EmailJS template so you can
+// customize that template in EmailJS for cancellations.
 export async function sendRefundNotification(email, fullName, bookingDetails) {
-  ensureEmailJsConfig(TEMPLATE_ID_REFUND);
+  ensureEmailJsConfig(TEMPLATE_ID_OTP);
 
   const templateParams = {
     to_email: email,
@@ -65,7 +67,7 @@ export async function sendRefundNotification(email, fullName, bookingDetails) {
     total_price: bookingDetails.totalPrice || 'N/A',
   };
 
-  await emailjs.send(SERVICE_ID, TEMPLATE_ID_REFUND, templateParams, {
+  await emailjs.send(SERVICE_ID, TEMPLATE_ID_OTP, templateParams, {
     publicKey: PUBLIC_KEY,
   });
 }
