@@ -11,6 +11,7 @@ export default function HostBookingsPage() {
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
+  const [wishlistByBooking, setWishlistByBooking] = useState({});
 
   useEffect(() => {
     const fetchBookings = async () => {
@@ -50,6 +51,36 @@ export default function HostBookingsPage() {
     };
 
     fetchBookings();
+  }, [user]);
+
+  useEffect(() => {
+    const fetchWishlistSuggestions = async () => {
+      if (!user) {
+        setWishlistByBooking({});
+        return;
+      }
+
+      try {
+        const suggestionsRef = collection(db, 'hostWishlistSuggestions');
+        const qSuggestions = query(suggestionsRef, where('hostId', '==', user.uid));
+        const snap = await getDocs(qSuggestions);
+        const map = {};
+        snap.forEach((d) => {
+          const data = d.data();
+          const bookingId = data.bookingId;
+          if (!bookingId) return;
+          if (!map[bookingId]) map[bookingId] = [];
+          map[bookingId].push({ id: d.id, ...data });
+        });
+        setWishlistByBooking(map);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('Error loading wishlist suggestions for host', err);
+        setWishlistByBooking({});
+      }
+    };
+
+    fetchWishlistSuggestions();
   }, [user]);
 
   const awardHostPoints = async (hostId, points, reason, metadata = {}) => {
@@ -254,33 +285,72 @@ export default function HostBookingsPage() {
             const isAccepted = booking.status === 'accepted';
             const isDeclined = booking.status === 'declined';
 
-            let statusColor = 'default';
-            if (isAccepted) statusColor = 'success';
-            else if (isDeclined) statusColor = 'error';
-            else statusColor = 'warning';
+const loadGuestWishlistSuggestions = async () => {
+  try {
+    const wishlistSuggestionsRef = collection(db, 'hostWishlistSuggestions');
+    const q = query(wishlistSuggestionsRef, where('hostId', '==', hostId));
+    const snap = await getDocs(q);
+    const wishlistByBooking = {};
+    snap.forEach((d) => {
+      const data = d.data();
+      const bookingId = data.bookingId;
+      if (!wishlistByBooking[bookingId]) wishlistByBooking[bookingId] = [];
+      wishlistByBooking[bookingId].push({ id: d.id, message: data.message });
+    });
+    return wishlistByBooking;
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('Failed to load guest wishlist suggestions', err);
+    return {};
+  }
+};
 
-            return (
-              <Grid size={{ xs: 12 }} key={booking.id}>
-                <Paper
-                  sx={{
-                    p: 2,
-                    borderLeft: isAccepted ? '4px solid #2e7d32' : isDeclined ? '4px solid #c62828' : '4px solid #ed6c02',
-                    bgcolor: isAccepted ? 'rgba(46,125,50,0.04)' : isDeclined ? 'rgba(198,40,40,0.03)' : 'background.paper',
-                  }}
-                >
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                    <Chip
-                      size="small"
-                      color={statusColor}
-                      label={
-                        isAccepted
-                          ? 'Accepted booking'
-                          : isDeclined
-                            ? 'Declined booking'
-                            : (booking.status || 'Pending request')
-                      }
-                    />
-                  </Box>
+return (
+  <>
+    <Typography variant="h4" gutterBottom>
+      Bookings
+    </Typography>
+    <Typography variant="subtitle1" gutterBottom>
+      Booking requests for your listings.
+    </Typography>
+
+    {loading ? (
+      <Typography variant="body2">Loading bookings...</Typography>
+    ) : bookings.length === 0 ? (
+      <Typography variant="body2">You have no booking requests yet.</Typography>
+    ) : (
+      <Grid container spacing={2} sx={{ mt: 1 }}>
+        {bookings.map((booking) => {
+          const isAccepted = booking.status === 'accepted';
+          const isDeclined = booking.status === 'declined';
+
+          let statusColor = 'default';
+          if (isAccepted) statusColor = 'success';
+          else if (isDeclined) statusColor = 'error';
+          else statusColor = 'warning';
+
+          return (
+            <Grid size={{ xs: 12 }} key={booking.id}>
+              <Paper
+                sx={{
+                  p: 2,
+                  borderLeft: isAccepted ? '4px solid #2e7d32' : isDeclined ? '4px solid #c62828' : '4px solid #ed6c02',
+                  bgcolor: isAccepted ? 'rgba(46,125,50,0.04)' : isDeclined ? 'rgba(198,40,40,0.03)' : 'background.paper',
+                }}
+              >
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                  <Chip
+                    size="small"
+                    color={statusColor}
+                    label={
+                      isAccepted
+                        ? 'Accepted booking'
+                        : isDeclined
+                          ? 'Declined booking'
+                          : (booking.status || 'Pending request')
+                    }
+                  />
+                </Box>
                 {booking.listing ? (
                   <>
                     <Typography variant="h6" noWrap>

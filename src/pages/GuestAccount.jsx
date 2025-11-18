@@ -50,6 +50,10 @@ export default function GuestAccountPage() {
   const [selectedBookingForRefund, setSelectedBookingForRefund] = useState(null);
   const [refundReason, setRefundReason] = useState('');
   const [submittingRefund, setSubmittingRefund] = useState(false);
+  const [wishlistModalOpen, setWishlistModalOpen] = useState(false);
+  const [selectedBookingForWishlist, setSelectedBookingForWishlist] = useState(null);
+  const [wishlistText, setWishlistText] = useState('');
+  const [submittingWishlist, setSubmittingWishlist] = useState(false);
   const [walletBalance, setWalletBalance] = useState(0);
   const [walletLoading, setWalletLoading] = useState(true);
   const [walletError, setWalletError] = useState('');
@@ -612,6 +616,36 @@ export default function GuestAccountPage() {
     } catch (err) {
       // eslint-disable-next-line no-console
       console.error('Error toggling favorite listing', err);
+    }
+  };
+
+  const handleWishlistSubmit = async () => {
+    if (!selectedBookingForWishlist || !wishlistText.trim() || !user) return;
+
+    try {
+      setSubmittingWishlist(true);
+      const suggestionsRef = collection(db, 'hostWishlistSuggestions');
+      await addDoc(suggestionsRef, {
+        hostId: selectedBookingForWishlist.hostId,
+        guestId: user.uid,
+        listingId: selectedBookingForWishlist.listingId,
+        bookingId: selectedBookingForWishlist.id,
+        message: wishlistText.trim(),
+        createdAt: serverTimestamp(),
+      });
+
+      setMessage('Wishlist suggestion sent to host.');
+      setWishlistModalOpen(false);
+      setSelectedBookingForWishlist(null);
+      setWishlistText('');
+      setTimeout(() => setMessage(''), 4000);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Error submitting wishlist suggestion', err);
+      setMessage('Failed to send wishlist suggestion. Please try again.');
+      setTimeout(() => setMessage(''), 4000);
+    } finally {
+      setSubmittingWishlist(false);
     }
   };
 
@@ -1391,6 +1425,18 @@ export default function GuestAccountPage() {
                                       </p>
                                     </div>
                                   </div>
+                                  <div className="mt-3">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedBookingForWishlist(booking);
+                                        setWishlistModalOpen(true);
+                                      }}
+                                      className="text-xs px-3 py-1 border border-green-300 rounded-full text-green-700 hover:bg-green-50"
+                                    >
+                                      Tell host what you want to see more of
+                                    </button>
+                                  </div>
                                 </div>
                               ))}
                             </div>
@@ -1469,6 +1515,18 @@ export default function GuestAccountPage() {
                                       </p>
                                     </div>
                                   </div>
+                                  <div className="mt-3">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setSelectedBookingForWishlist(booking);
+                                        setWishlistModalOpen(true);
+                                      }}
+                                      className="text-xs px-3 py-1 border border-green-300 rounded-full text-green-700 hover:bg-green-50"
+                                    >
+                                      Tell host what you want to see more of
+                                    </button>
+                                  </div>
                                 </div>
                               ))}
                             </div>
@@ -1476,6 +1534,50 @@ export default function GuestAccountPage() {
                         )}
                       </>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {wishlistModalOpen && selectedBookingForWishlist && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                  <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Wishlist for this booking</h3>
+                    <p className="text-sm text-gray-600 mb-4">
+                      Tell the host what you would like to see more of for
+                      {' '}
+                      <span className="font-semibold">
+                        {selectedBookingForWishlist.listing?.title || 'this listing'}
+                      </span>
+                      .
+                    </p>
+                    <textarea
+                      value={wishlistText}
+                      onChange={(e) => setWishlistText(e.target.value)}
+                      rows={4}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 text-sm mb-4"
+                      placeholder="e.g. More kid-friendly amenities, flexible check-in times, airport pickup, etc."
+                    />
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setWishlistModalOpen(false);
+                          setSelectedBookingForWishlist(null);
+                          setWishlistText('');
+                        }}
+                        className="px-3 py-1.5 text-sm border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="button"
+                        disabled={submittingWishlist || !wishlistText.trim()}
+                        onClick={handleWishlistSubmit}
+                        className="px-4 py-1.5 text-sm bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50"
+                      >
+                        {submittingWishlist ? 'Sending...' : 'Send to host'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
