@@ -54,13 +54,7 @@ export default function GuestAccountPage() {
   const [selectedBookingForWishlist, setSelectedBookingForWishlist] = useState(null);
   const [wishlistText, setWishlistText] = useState('');
   const [submittingWishlist, setSubmittingWishlist] = useState(false);
-  const [reviewModalOpen, setReviewModalOpen] = useState(false);
-  const [selectedBookingForReview, setSelectedBookingForReview] = useState(null);
-  const [reviewRating, setReviewRating] = useState(0);
-  const [reviewComment, setReviewComment] = useState('');
-  const [submittingReview, setSubmittingReview] = useState(false);
-  const [reviews, setReviews] = useState([]);
-  const [loadingReviews, setLoadingReviews] = useState(true);
+
   const [walletBalance, setWalletBalance] = useState(0);
   const [walletLoading, setWalletLoading] = useState(true);
   const [walletError, setWalletError] = useState('');
@@ -77,6 +71,13 @@ export default function GuestAccountPage() {
   const [coupons, setCoupons] = useState([]);
   const [loadingCoupons, setLoadingCoupons] = useState(true);
   const [couponError, setCouponError] = useState('');
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [selectedBookingForReview, setSelectedBookingForReview] = useState(null);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [reviews, setReviews] = useState([]);
+  const [loadingReviews, setLoadingReviews] = useState(true);
 
   const paypalClientId = import.meta.env.VITE_PAYPAL_CLIENT_ID || '';
 
@@ -535,6 +536,34 @@ export default function GuestAccountPage() {
       setLoadingMessages(false);
       return undefined;
     }
+  }, [user]);
+
+  // Load user's reviews
+  useEffect(() => {
+    const loadReviews = async () => {
+      if (!user) {
+        setReviews([]);
+        setLoadingReviews(false);
+        return;
+      }
+
+      try {
+        setLoadingReviews(true);
+        const reviewsRef = collection(db, 'reviews');
+        const q = query(reviewsRef, where('guestId', '==', user.uid));
+        const snap = await getDocs(q);
+        const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setReviews(items);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('Error loading reviews', err);
+        setReviews([]);
+      } finally {
+        setLoadingReviews(false);
+      }
+    };
+
+    loadReviews();
   }, [user]);
 
   const now = new Date();
