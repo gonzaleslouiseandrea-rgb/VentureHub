@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { collection, addDoc, getDocs, query, where, serverTimestamp, updateDoc, doc } from 'firebase/firestore';
+import DatePicker from 'react-datepicker';
+import 'react-datepicker/dist/react-datepicker.css';
 import { db } from '../firebase.js';
 import { useAuth } from '../auth/AuthContext.jsx';
 
@@ -18,6 +20,7 @@ export default function HostCouponsPage() {
     validUntil: '',
   });
   const [saving, setSaving] = useState(false);
+  const [validDates, setValidDates] = useState([null, null]);
 
   useEffect(() => {
     const load = async () => {
@@ -54,6 +57,24 @@ export default function HostCouponsPage() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleValidRangeChange = (dates) => {
+    const [start, end] = dates;
+    setValidDates([start, end]);
+
+    const format = (d) => (d instanceof Date && !Number.isNaN(d.getTime())
+      ? d.toISOString().slice(0, 10)
+      : '');
+
+    const startStr = format(start);
+    const endStr = format(end);
+
+    setForm((prev) => ({
+      ...prev,
+      validFrom: startStr,
+      validUntil: endStr,
+    }));
   };
 
   const handleCreate = async (e) => {
@@ -97,6 +118,7 @@ export default function HostCouponsPage() {
         validFrom: '',
         validUntil: '',
       });
+      setValidDates([null, null]);
     } catch (err) {
       setError(err.message || 'Failed to create coupon');
     } finally {
@@ -191,25 +213,43 @@ export default function HostCouponsPage() {
             <option value="service">Services</option>
           </select>
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Valid from</label>
-          <input
-            type="date"
-            name="validFrom"
-            value={form.validFrom}
-            onChange={handleChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Valid until</label>
-          <input
-            type="date"
-            name="validUntil"
-            value={form.validUntil}
-            onChange={handleChange}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
-          />
+        <div className="md:col-span-2">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Valid date range (optional)</label>
+          <div className="inline-block border border-gray-300 rounded-md p-2 bg-white">
+            <DatePicker
+              selected={validDates[0]}
+              onChange={handleValidRangeChange}
+              startDate={validDates[0]}
+              endDate={validDates[1]}
+              selectsRange
+              inline
+              monthsShown={1}
+              minDate={new Date()}
+              dateFormat="MMM dd, yyyy"
+              calendarClassName="!text-xs"
+              renderCustomHeader={(headerProps) => (
+                <div className="flex items-center justify-between mb-2 px-1">
+                  <button
+                    type="button"
+                    onClick={headerProps.decreaseMonth}
+                    className="text-xs px-2 py-1 border border-gray-300 rounded-full bg-white hover:bg-gray-100"
+                  >
+                    Prev
+                  </button>
+                  <span className="text-sm font-semibold text-gray-800">
+                    {headerProps.date.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={headerProps.increaseMonth}
+                    className="text-xs px-2 py-1 border border-gray-300 rounded-full bg-white hover:bg-gray-100"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            />
+          </div>
         </div>
         <div>
           <button

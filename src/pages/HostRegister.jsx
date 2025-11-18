@@ -273,6 +273,7 @@ export default function HostRegisterPage() {
               name="email"
               value={form.email}
               onChange={handleChange}
+              inputProps={{ autoComplete: 'email' }}
             />
             <TextField
               fullWidth
@@ -282,6 +283,7 @@ export default function HostRegisterPage() {
               name="password"
               value={form.password}
               onChange={handleChange}
+              inputProps={{ autoComplete: 'new-password' }}
             />
             <TextField
               fullWidth
