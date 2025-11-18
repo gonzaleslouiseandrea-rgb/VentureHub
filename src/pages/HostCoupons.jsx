@@ -22,6 +22,22 @@ export default function HostCouponsPage() {
   const [saving, setSaving] = useState(false);
   const [validDates, setValidDates] = useState([null, null]);
 
+  const formatDisplayDate = (d) => {
+    if (!(d instanceof Date) || Number.isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
+
+  let validRangeDisplay = '';
+  if (validDates[0] && validDates[1]) {
+    validRangeDisplay = `${formatDisplayDate(validDates[0])}  ${formatDisplayDate(validDates[1])}`;
+  } else if (validDates[0]) {
+    validRangeDisplay = `${formatDisplayDate(validDates[0])} `;
+  }
+
   useEffect(() => {
     const load = async () => {
       if (!user) {
@@ -215,41 +231,41 @@ export default function HostCouponsPage() {
         </div>
         <div className="md:col-span-2">
           <label className="block text-sm font-medium text-gray-700 mb-1">Valid date range (optional)</label>
-          <div className="inline-block border border-gray-300 rounded-md p-2 bg-white">
-            <DatePicker
-              selected={validDates[0]}
-              onChange={handleValidRangeChange}
-              startDate={validDates[0]}
-              endDate={validDates[1]}
-              selectsRange
-              inline
-              monthsShown={1}
-              minDate={new Date()}
-              dateFormat="MMM dd, yyyy"
-              calendarClassName="!text-xs"
-              renderCustomHeader={(headerProps) => (
-                <div className="flex items-center justify-between mb-2 px-1">
-                  <button
-                    type="button"
-                    onClick={headerProps.decreaseMonth}
-                    className="text-xs px-2 py-1 border border-gray-300 rounded-full bg-white hover:bg-gray-100"
-                  >
-                    Prev
-                  </button>
-                  <span className="text-sm font-semibold text-gray-800">
-                    {headerProps.date.toLocaleString('default', { month: 'long', year: 'numeric' })}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={headerProps.increaseMonth}
-                    className="text-xs px-2 py-1 border border-gray-300 rounded-full bg-white hover:bg-gray-100"
-                  >
-                    Next
-                  </button>
-                </div>
-              )}
-            />
-          </div>
+          <DatePicker
+            selected={validDates[0]}
+            onChange={handleValidRangeChange}
+            startDate={validDates[0]}
+            endDate={validDates[1]}
+            selectsRange
+            monthsShown={1}
+            minDate={new Date()}
+            dateFormat="MMM dd, yyyy"
+            placeholderText="Select date range"
+            value={validRangeDisplay}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+            calendarClassName="!text-xs"
+            renderCustomHeader={(headerProps) => (
+              <div className="flex items-center justify-between mb-2 px-1">
+                <button
+                  type="button"
+                  onClick={headerProps.decreaseMonth}
+                  className="text-xs px-2 py-1 border border-gray-300 rounded-full bg-white hover:bg-gray-100"
+                >
+                  Prev
+                </button>
+                <span className="text-sm font-semibold text-gray-800">
+                  {headerProps.date.toLocaleString('default', { month: 'long', year: 'numeric' })}
+                </span>
+                <button
+                  type="button"
+                  onClick={headerProps.increaseMonth}
+                  className="text-xs px-2 py-1 border border-gray-300 rounded-full bg-white hover:bg-gray-100"
+                >
+                  Next
+                </button>
+              </div>
+            )}
+          />
         </div>
         <div>
           <button
