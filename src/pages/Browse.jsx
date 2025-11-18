@@ -49,6 +49,11 @@ export default function BrowsePage() {
   const [ratings, setRatings] = useState({});
   const [snack, setSnack] = useState({ open: false, message: '', severity: 'info' });
 
+  // Only show wishlist category for logged-in users
+  const visibleCategories = user
+    ? categories
+    : categories.filter((cat) => cat.key !== 'wishlist');
+
   const getDateRangeText = () => {
     if (!checkIn && !checkOut) return 'Check-in & Check-out';
     if (checkIn && !checkOut) return `${checkIn.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} → Select check-out`;
@@ -187,7 +192,7 @@ export default function BrowsePage() {
           {/* Filter panel: smart category filter only */}
           <div className="mb-8 p-6 bg-white rounded-lg shadow-sm border border-gray-200">
             <div className="flex flex-wrap gap-2">
-              {categories.map((cat) => (
+              {visibleCategories.map((cat) => (
                 <button
                   key={cat.key}
                   onClick={() => setActiveCategory(cat.key)}
@@ -239,23 +244,25 @@ export default function BrowsePage() {
                       showFavorite={false}
                     />
                   </div>
-                  {/* Favorite button overlay */}
-                  <div className="absolute top-3 right-3">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleFavorite(listing.id);
-                      }}
-                      className="p-2 rounded-full bg-white/90 shadow"
-                      aria-label="toggle favorite"
-                    >
-                      {favorites.has(listing.id) ? (
-                        <FavoriteIcon color="error" />
-                      ) : (
-                        <FavoriteBorderIcon />
-                      )}
-                    </button>
-                  </div>
+                  {/* Favorite button overlay - only for logged-in users */}
+                  {user && (
+                    <div className="absolute top-3 right-3">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleFavorite(listing.id);
+                        }}
+                        className="p-2 rounded-full bg-white/90 shadow"
+                        aria-label="toggle favorite"
+                      >
+                        {favorites.has(listing.id) ? (
+                          <FavoriteIcon color="error" />
+                        ) : (
+                          <FavoriteBorderIcon />
+                        )}
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

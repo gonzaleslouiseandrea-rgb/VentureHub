@@ -1297,6 +1297,7 @@ export default function HostListingsPage() {
                     </div>
                   </>
                 )}
+
                 <div className="mb-4">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                   <textarea
@@ -1317,12 +1318,20 @@ export default function HostListingsPage() {
                   >
                     {isAtListingLimit() ? 'Publish limit reached' : 'Publish listing'}
                   </button>
+                  <button
+                    type="button"
+                    className="px-4 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50"
+                    disabled={saving}
+                    onClick={() => handleSave('draft')}
+                  >
+                    Save as draft
+                  </button>
                 </div>
               </>
+
             )}
 
-            {/* Step navigation */}
-            <div className="flex justify-between items-center mt-4">
+            <div className="flex gap-2 mt-2 flex-wrap">
               <button
                 type="button"
                 className="px-4 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -1332,7 +1341,16 @@ export default function HostListingsPage() {
                 Back
               </button>
 
-              <div className="flex items-center gap-2">
+              {activeStep < 2 && (
+                <button
+                  type="button"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700"
+                  onClick={() => setActiveStep((prev) => Math.min(prev + 1, 2))}
+                >
+                  Next
+                </button>
+              )}
+              {activeStep < 2 && (
                 <button
                   type="button"
                   className="px-4 py-2 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50"
@@ -1341,17 +1359,7 @@ export default function HostListingsPage() {
                 >
                   Save as draft
                 </button>
-
-                {activeStep < 2 && (
-                  <button
-                    type="button"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700"
-                    onClick={() => setActiveStep((prev) => Math.min(prev + 1, 2))}
-                  >
-                    Next
-                  </button>
-                )}
-              </div>
+              )}
             </div>
           </div>
         </div>

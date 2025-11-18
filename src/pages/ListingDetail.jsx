@@ -40,6 +40,7 @@ export default function ListingDetailPage() {
   const [discountApplied, setDiscountApplied] = useState(false);
   const [promoMessage, setPromoMessage] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [availableCoupons, setAvailableCoupons] = useState([]);
 
   const [messageText, setMessageText] = useState('');
   const [messageError, setMessageError] = useState('');
@@ -196,6 +197,16 @@ export default function ListingDetailPage() {
 
       const couponDoc = { id: snap.docs[0].id, ...snap.docs[0].data() };
 
+      // Ensure category matches listing (or coupon is for all listings)
+      const listingCategory = (listing.category || '').toLowerCase();
+      const couponCategory = (couponDoc.category || 'all').toLowerCase();
+      if (couponCategory !== 'all' && couponCategory !== listingCategory) {
+        setPromoMessage('This coupon is not valid for this type of listing.');
+        setDiscountApplied(false);
+        setAppliedCoupon(null);
+        return;
+      }
+
       const subtotal = listing.rate * nights;
       const minAmount = typeof couponDoc.minAmount === 'number' ? couponDoc.minAmount : null;
       if (minAmount && subtotal < minAmount) {
@@ -313,6 +324,42 @@ export default function ListingDetailPage() {
       setChatLoading(false);
     }
   }, [id, user]);
+
+  useEffect(() => {
+    const loadAvailableCoupons = async () => {
+      try {
+        if (!listing || !listing.hostId) {
+          setAvailableCoupons([]);
+          return;
+        }
+
+        const couponsRef = collection(db, 'coupons');
+        const qCoupons = query(
+          couponsRef,
+          where('hostId', '==', listing.hostId),
+          where('active', '==', true),
+        );
+        const snap = await getDocs(qCoupons);
+        const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+        // Filter by category match: either coupon is for all, or matches listing.category
+        const listingCategory = (listing.category || '').toLowerCase();
+        const filtered = items.filter((c) => {
+          const cat = (c.category || 'all').toLowerCase();
+          if (cat === 'all') return true;
+          return cat === listingCategory;
+        });
+
+        setAvailableCoupons(filtered);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('Error loading available coupons for listing', err);
+        setAvailableCoupons([]);
+      }
+    };
+
+    loadAvailableCoupons();
+  }, [listing]);
 
   const handleShare = async () => {
     try {
@@ -498,7 +545,7 @@ export default function ListingDetailPage() {
     }
   };
 
-    if (loading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
         <header className="fixed top-0 left-0 right-0 z-50 bg-white border-b border-gray-200 shadow-sm">
@@ -838,6 +885,29 @@ export default function ListingDetailPage() {
                           placeholder="Enter coupon code (optional)"
                           className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-1 focus:ring-green-500 text-sm"
                         />
+                        {availableCoupons.length > 0 && (
+                          <select
+                            value=""
+                            onChange={(e) => {
+                              const selectedId = e.target.value;
+                              const selected = availableCoupons.find((c) => c.id === selectedId);
+                              if (selected) {
+                                setPromoCode(selected.code || '');
+                                setDiscountApplied(false);
+                                setAppliedCoupon(null);
+                                setPromoMessage('');
+                              }
+                            }}
+                            className="px-3 py-2 border border-gray-300 rounded-md text-sm bg-white"
+                          >
+                            <option value="">Select coupon</option>
+                            {availableCoupons.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.code} ({typeof c.discountPercent === 'number' ? `${c.discountPercent}%` : ''})
+                              </option>
+                            ))}
+                          </select>
+                        )}
                         <button
                           type="button"
                           onClick={handleApplyPromo}

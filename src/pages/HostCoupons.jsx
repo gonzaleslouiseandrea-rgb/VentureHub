@@ -8,7 +8,7 @@ export default function HostCouponsPage() {
   const [coupons, setCoupons] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [form, setForm] = useState({ code: '', discountPercent: '', minAmount: '', description: '' });
+  const [form, setForm] = useState({ code: '', discountPercent: '', minAmount: '', description: '', category: 'all' });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -61,18 +61,20 @@ export default function HostCouponsPage() {
       const couponsRef = collection(db, 'coupons');
       const discountPercent = Number(form.discountPercent) || 0;
       const minAmount = Number(form.minAmount) || 0;
+      const category = form.category || 'all';
       const payload = {
         hostId: user.uid,
         code: form.code.trim().toUpperCase(),
         discountPercent,
         minAmount,
         description: form.description.trim() || '',
+        category,
         active: true,
         createdAt: serverTimestamp(),
       };
       const ref = await addDoc(couponsRef, payload);
       setCoupons((prev) => [...prev, { id: ref.id, ...payload }]);
-      setForm({ code: '', discountPercent: '', minAmount: '', description: '' });
+      setForm({ code: '', discountPercent: '', minAmount: '', description: '', category: 'all' });
     } catch (err) {
       setError(err.message || 'Failed to create coupon');
     } finally {
@@ -103,7 +105,7 @@ export default function HostCouponsPage() {
         </div>
       )}
 
-      <form onSubmit={handleCreate} className="mb-6 grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+      <form onSubmit={handleCreate} className="mb-6 grid grid-cols-1 md:grid-cols-6 gap-3 items-end">
         <div className="md:col-span-2">
           <label className="block text-sm font-medium text-gray-700 mb-1">Code</label>
           <div className="flex gap-2">
@@ -154,6 +156,20 @@ export default function HostCouponsPage() {
           />
         </div>
         <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+          <select
+            name="category"
+            value={form.category}
+            onChange={handleChange}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          >
+            <option value="all">All listings</option>
+            <option value="home">Homes</option>
+            <option value="experience">Experiences</option>
+            <option value="service">Services</option>
+          </select>
+        </div>
+        <div>
           <button
             type="submit"
             disabled={saving}
@@ -179,6 +195,7 @@ export default function HostCouponsPage() {
                 <th className="px-4 py-2 text-left font-medium text-gray-700">Discount</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-700">Min amount</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-700">Description</th>
+                <th className="px-4 py-2 text-left font-medium text-gray-700">Category</th>
                 <th className="px-4 py-2 text-left font-medium text-gray-700">Status</th>
                 <th className="px-4 py-2"></th>
               </tr>
@@ -192,6 +209,12 @@ export default function HostCouponsPage() {
                     {typeof c.minAmount === 'number' ? `₱${c.minAmount.toFixed(2)}` : '—'}
                   </td>
                   <td className="px-4 py-2 text-gray-600">{c.description}</td>
+                  <td className="px-4 py-2 text-gray-600">
+                    {c.category === 'home' && 'Homes'}
+                    {c.category === 'experience' && 'Experiences'}
+                    {c.category === 'service' && 'Services'}
+                    {!c.category || c.category === 'all' ? 'All listings' : null}
+                  </td>
                   <td className="px-4 py-2">
                     {c.active ? (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">

@@ -3,6 +3,7 @@ import { Box, Button, Chip, Grid, Paper, Typography, Snackbar, Alert } from '@mu
 import { collection, doc, getDoc, getDocs, query, updateDoc, where, setDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase.js';
 import { useAuth } from '../auth/AuthContext.jsx';
+import { sendBookingDetails } from '../utils/emailService.js';
 
 export default function HostBookingsPage() {
   const { user } = useAuth();
@@ -169,6 +170,41 @@ export default function HostBookingsPage() {
             platformFeeAmount,
             hostNetAmount,
           });
+
+          // Send booking confirmation email to guest
+          try {
+            if (bookingDoc.guestId) {
+              const guestRef = doc(db, 'users', bookingDoc.guestId);
+              const guestSnap = await getDoc(guestRef);
+
+              if (guestSnap.exists()) {
+                const guestData = guestSnap.data();
+                const guestEmail = guestData.email;
+                const guestName = guestData.name || guestEmail?.split('@')[0] || 'Guest';
+
+                if (guestEmail) {
+                  const bookingDetails = {
+                    listingTitle: bookingDoc.listing?.title || 'N/A',
+                    location: bookingDoc.listing?.location || 'N/A',
+                    checkIn: bookingDoc.checkIn?.toDate
+                      ? bookingDoc.checkIn.toDate().toLocaleDateString()
+                      : 'N/A',
+                    checkOut: bookingDoc.checkOut?.toDate
+                      ? bookingDoc.checkOut.toDate().toLocaleDateString()
+                      : 'N/A',
+                    guestCount: bookingDoc.guestCount || 'N/A',
+                    totalPrice: totalPrice ? `₱${totalPrice.toFixed(2)}` : 'N/A',
+                  };
+
+                  await sendBookingDetails(guestEmail, guestName, bookingDetails);
+                }
+              }
+            }
+          } catch (emailErr) {
+            // eslint-disable-next-line no-console
+            console.error('Failed to send booking confirmation email to guest:', emailErr);
+            // Do not interrupt booking acceptance if email fails
+          }
         } else {
           // Fallback if booking not in local state: at least update status
           await updateDoc(bookingRef, { status });

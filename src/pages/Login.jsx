@@ -85,7 +85,7 @@ export default function LoginPage() {
 
       const userData = userDocSnap.data();
       if (!userData.verified) {
-        setError('Please verify your email before logging in. Check your inbox for the verification email.');
+        setError('Please verify your email with the OTP code sent to your inbox before logging in.');
         return;
       }
 
@@ -113,7 +113,7 @@ export default function LoginPage() {
 
       const userData = userDocSnap.data();
       if (!userData.verified) {
-        setError('Please verify your email before logging in. Check your inbox for the verification email.');
+        setError('Please verify your email with the OTP code sent to your inbox before logging in.');
         return;
       }
 

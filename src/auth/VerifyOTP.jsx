@@ -17,12 +17,15 @@ import {
   getDocs,
   updateDoc,
 } from 'firebase/firestore';
+import { sendVerificationOTP } from '../utils/emailService.js';
 
 export default function VerifyOTP() {
   const [otp, setOtp] = useState('');
   const [status, setStatus] = useState('verifying');
   const [message, setMessage] = useState('');
   const [verifiedEmail, setVerifiedEmail] = useState('');
+  const [resendLoading, setResendLoading] = useState(false);
+  const [infoMessage, setInfoMessage] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -124,6 +127,48 @@ export default function VerifyOTP() {
     }
   };
 
+  const handleResendOtp = async () => {
+    if (!verifiedEmail) {
+      setMessage('No email available to resend OTP. Please register again.');
+      return;
+    }
+
+    setResendLoading(true);
+    setMessage('');
+    setInfoMessage('');
+
+    try {
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, where('email', '==', verifiedEmail), limit(1));
+      const snapshot = await getDocs(q);
+
+      if (snapshot.empty) {
+        setMessage('User not found. Please register again.');
+        return;
+      }
+
+      const userDoc = snapshot.docs[0];
+      const userData = userDoc.data();
+
+      const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
+
+      await updateDoc(userDoc.ref, {
+        verificationOTP: newOtp,
+        verificationOTPExpiry: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+      });
+
+      await sendVerificationOTP(verifiedEmail, userData.name || verifiedEmail, newOtp);
+
+      setInfoMessage('A new OTP has been sent to your email. Please check your inbox.');
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Resend OTP error:', error);
+      setMessage('Failed to resend OTP. Please try again in a moment.');
+    } finally {
+      setResendLoading(false);
+    }
+  };
+
   return (
     <Box
       sx={{
@@ -176,6 +221,11 @@ export default function VerifyOTP() {
                 {message}
               </Typography>
             )}
+            {infoMessage && (
+              <Typography color="text.secondary" mb={2}>
+                {infoMessage}
+              </Typography>
+            )}
             <Button
               variant="contained"
               fullWidth
@@ -189,6 +239,20 @@ export default function VerifyOTP() {
               onClick={handleOtpSubmit}
             >
               Verify OTP
+            </Button>
+            <Button
+              variant="outlined"
+              fullWidth
+              sx={{
+                mt: 2,
+                borderColor: '#87ab69',
+                color: '#87ab69',
+                '&:hover': { borderColor: '#76965d' },
+              }}
+              disabled={resendLoading}
+              onClick={handleResendOtp}
+            >
+              {resendLoading ? 'Resending OTP...' : 'Resend OTP'}
             </Button>
           </>
         )}

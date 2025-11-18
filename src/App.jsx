@@ -4,7 +4,6 @@ import LandingPage from './pages/Landing.jsx';
 import RegisterPage from './pages/Register.jsx';
 import LoginPage from './pages/Login.jsx';
 import HostRegisterPage from './pages/HostRegister.jsx';
-import VerifyEmailPage from './auth/VerifyEmail.jsx';
 import VerifyOTPPage from './auth/VerifyOTP.jsx';
 import BrowsePage from './pages/Browse.jsx';
 import ListingDetailPage from './pages/ListingDetail.jsx';
@@ -30,7 +29,6 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/verify-email" element={<VerifyEmailPage />} />
         <Route path="/verify-otp" element={<VerifyOTPPage />} />
         <Route path="/host/register" element={<HostRegisterPage />} />
         <Route path="/browse" element={<BrowsePage />} />
