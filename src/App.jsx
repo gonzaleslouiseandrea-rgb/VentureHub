@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import HostLayout from './layouts/HostLayout.jsx';
+import AdminLayout from './layouts/AdminLayout.jsx';
 import LandingPage from './pages/Landing.jsx';
 import RegisterPage from './pages/Register.jsx';
 import LoginPage from './pages/Login.jsx';
@@ -20,6 +21,12 @@ import HostCouponsPage from './pages/HostCoupons.jsx';
 import HostPlanPage from './pages/HostPlan.jsx';
 import ChatRoomPage from './pages/ChatRoom.jsx';
 import ProtectedRoute from './auth/ProtectedRoute.jsx';
+import AdminProtectedRoute from './auth/AdminProtectedRoute.jsx';
+import AdminDashboardPage from './pages/AdminDashboard.jsx';
+import AdminAnalyticsPage from './pages/AdminAnalytics.jsx';
+import AdminReportsPage from './pages/AdminReports.jsx';
+import AdminPaymentsPage from './pages/AdminPayments.jsx';
+import AdminPoliciesPage from './pages/AdminPolicies.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 
 function App() {
@@ -35,6 +42,22 @@ function App() {
         <Route path="/listing/:id" element={<ListingDetailPage />} />
         <Route path="/guest/account" element={<GuestAccountPage />} />
         <Route path="/chat/:listingId/:guestId" element={<ProtectedRoute><ChatRoomPage /></ProtectedRoute>} />
+
+        <Route
+          path="/admin"
+          element={(
+            <AdminProtectedRoute>
+              <AdminLayout />
+            </AdminProtectedRoute>
+          )}
+        >
+          <Route index element={<Navigate to="/admin/dashboard" replace />} />
+          <Route path="dashboard" element={<AdminDashboardPage />} />
+          <Route path="analytics" element={<AdminAnalyticsPage />} />
+          <Route path="reports" element={<AdminReportsPage />} />
+          <Route path="payments" element={<AdminPaymentsPage />} />
+          <Route path="policies" element={<AdminPoliciesPage />} />
+        </Route>
 
         <Route
           path="/host"
