@@ -54,6 +54,12 @@ export default function GuestAccountPage() {
   const [selectedBookingForWishlist, setSelectedBookingForWishlist] = useState(null);
   const [wishlistText, setWishlistText] = useState('');
   const [submittingWishlist, setSubmittingWishlist] = useState(false);
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [selectedBookingForReview, setSelectedBookingForReview] = useState(null);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [reviews, setReviews] = useState([]);
   const [walletBalance, setWalletBalance] = useState(0);
   const [walletLoading, setWalletLoading] = useState(true);
   const [walletError, setWalletError] = useState('');
