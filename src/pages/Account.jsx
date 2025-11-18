@@ -88,11 +88,24 @@ export default function HostAccountPage() {
       try {
         setPointsEventsLoading(true);
         const eventsRef = collection(db, 'hostPointsEvents');
-        const q = query(eventsRef, where('hostId', '==', user.uid), orderBy('createdAt', 'desc'));
+        const q = query(eventsRef, where('hostId', '==', user.uid));
         const snap = await getDocs(q);
         const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+        // Sort newest first on client to avoid index issues
+        items.sort((a, b) => {
+          const aDate = a.createdAt?.toDate ? a.createdAt.toDate() : null;
+          const bDate = b.createdAt?.toDate ? b.createdAt.toDate() : null;
+          if (!aDate && !bDate) return 0;
+          if (!aDate) return 1;
+          if (!bDate) return -1;
+          return bDate.getTime() - aDate.getTime();
+        });
+
         setPointsEvents(items);
-      } catch {
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('Failed to load host points events', err);
         setPointsEvents([]);
       } finally {
         setPointsEventsLoading(false);
