@@ -761,6 +761,19 @@ export default function GuestAccountPage() {
         guestId: user.uid,
         hostId: selectedBookingForRefund.hostId,
         listingId: selectedBookingForRefund.listingId,
+        guestEmail: user.email || '',
+        guestName: user.displayName || (user.email ? user.email.split('@')[0] : ''),
+        listingTitle: selectedBookingForRefund.listing?.title || '',
+        location: selectedBookingForRefund.listing?.location || '',
+        checkIn:
+          selectedBookingForRefund.checkIn && selectedBookingForRefund.checkIn.toDate
+            ? selectedBookingForRefund.checkIn.toDate().toLocaleDateString()
+            : '',
+        checkOut:
+          selectedBookingForRefund.checkOut && selectedBookingForRefund.checkOut.toDate
+            ? selectedBookingForRefund.checkOut.toDate().toLocaleDateString()
+            : '',
+        guestCount: selectedBookingForRefund.guestCount || null,
         reason: refundReason,
         status: 'pending',
         amount: selectedBookingForRefund.totalPrice,

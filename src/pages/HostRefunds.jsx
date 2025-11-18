@@ -3,6 +3,7 @@ import { Alert, Box, Button, Chip, Grid, Paper, Snackbar, Typography } from '@mu
 import { collection, getDocs, query, updateDoc, where, doc, getDoc, setDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../firebase.js';
 import { useAuth } from '../auth/AuthContext.jsx';
+import { sendRefundNotification } from '../utils/emailService.js';
 
 export default function HostRefundsPage() {
   const { user } = useAuth();
@@ -102,6 +103,25 @@ export default function HostRefundsPage() {
               status: 'refunded',
               updatedAt: serverTimestamp(),
             });
+          }
+
+          const guestEmail = refundDoc.guestEmail || null;
+          const guestName = refundDoc.guestName || '';
+          if (guestEmail) {
+            const bookingDetails = {
+              listingTitle: refundDoc.listingTitle || 'N/A',
+              location: refundDoc.location || 'N/A',
+              checkIn: refundDoc.checkIn || 'N/A',
+              checkOut: refundDoc.checkOut || 'N/A',
+              guestCount: refundDoc.guestCount || 'N/A',
+              totalPrice: typeof refundDoc.amount === 'number' ? `₱${refundDoc.amount.toFixed(2)}` : 'N/A',
+            };
+
+            try {
+              await sendRefundNotification(guestEmail, guestName, bookingDetails);
+            } catch (emailErr) {
+              console.error('Failed to send refund notification email', emailErr);
+            }
           }
         }
       }

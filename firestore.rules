@@ -101,6 +101,18 @@ service cloud.firestore {
       allow read, create, update: if isSignedIn() && request.auth.uid == userId;
     }
 
+    // HOST WISHLIST SUGGESTIONS: guests send suggestions to hosts per booking
+    match /hostWishlistSuggestions/{suggestionId} {
+      // Guest creates suggestion for themselves
+      allow create: if isSignedIn() && request.resource.data.guestId == request.auth.uid;
+
+      // Host can read suggestions that belong to them (by hostId)
+      allow read: if isSignedIn() && resource.data.hostId == request.auth.uid;
+
+      // No client-side updates/deletes for now
+      allow update, delete: if false;
+    }
+
     // FAVORITES (guest wishlist)
     match /favorites/{favoriteId} {
       // User can read their own favorites
