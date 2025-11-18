@@ -4,8 +4,10 @@ import { Navigate } from 'react-router-dom';
 export default function AdminProtectedRoute({ children }) {
   const { user } = useAuth();
 
-  // Simple admin check: assume admin if email is admin@venturehub.com (or use custom claims)
-  if (!user || user.email !== 'admin@venturehub.com') {
+  // For now, allow any signed-in user to access admin pages.
+  // If you want to restrict this later, add a stricter check here
+  // (e.g., specific email or a role field in Firestore/custom claims).
+  if (!user) {
     return <Navigate to="/login" replace />;
   }
 
