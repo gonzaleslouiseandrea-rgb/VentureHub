@@ -6,6 +6,7 @@ export default function AdminReportsPage() {
   const [reportType, setReportType] = useState('bookings');
   const [reportData, setReportData] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('all');
 
   const generateReport = async () => {
     setLoading(true);
@@ -41,8 +42,12 @@ export default function AdminReportsPage() {
 
   const downloadCSV = () => {
     if (reportData.length === 0) return;
-    const headers = Object.keys(reportData[0]).join(',');
-    const rows = reportData.map((row) => Object.values(row).join(','));
+
+    const filtered = getFilteredData();
+    if (filtered.length === 0) return;
+
+    const headers = Object.keys(filtered[0]).join(',');
+    const rows = filtered.map((row) => Object.values(row).join(','));
     const csv = [headers, ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -56,8 +61,11 @@ export default function AdminReportsPage() {
   const printReportToPDF = () => {
     if (reportData.length === 0) return;
 
-    const headers = Object.keys(reportData[0]);
-    const rowsHtml = reportData
+    const filtered = getFilteredData();
+    if (filtered.length === 0) return;
+
+    const headers = Object.keys(filtered[0]);
+    const rowsHtml = filtered
       .map((row) => {
         const cells = headers
           .map((key) => `<td style="padding:8px;border:1px solid #e5e7eb;font-size:12px;">${String(row[key] ?? '')}</td>`)
@@ -104,19 +112,39 @@ export default function AdminReportsPage() {
         ${rowsHtml}
       </tbody>
     </table>
-    <script>
-      window.onload = function() {
-        window.print();
-      };
-    </script>
   </body>
 </html>`;
 
-    const printWindow = window.open('', '_blank', 'noopener,noreferrer');
+    const printWindow = window.open('', '_blank');
     if (!printWindow) return;
     printWindow.document.open();
     printWindow.document.write(html);
     printWindow.document.close();
+    // Give the browser a moment to render before triggering print
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+    }, 300);
+  };
+
+  const getFilteredData = () => {
+    if (reportType !== 'bookings' || statusFilter === 'all') return reportData;
+
+    return reportData.filter((row) => {
+      const status = (row.status || '').toString().toLowerCase();
+      if (!status) return false;
+
+      if (statusFilter === 'completed') {
+        return status === 'confirmed' || status === 'completed';
+      }
+      if (statusFilter === 'pending') {
+        return status === 'pending';
+      }
+      if (statusFilter === 'declined') {
+        return status === 'rejected' || status === 'declined' || status === 'cancelled' || status === 'canceled';
+      }
+      return true;
+    });
   };
 
   return (
@@ -130,7 +158,7 @@ export default function AdminReportsPage() {
         </div>
 
         <div className="bg-white border border-green-100 rounded-lg p-6 shadow-sm mb-6">
-          <div className="flex gap-4 mb-4">
+          <div className="flex flex-wrap gap-4 mb-4 items-center">
             <select
               value={reportType}
               onChange={(e) => setReportType(e.target.value)}
@@ -140,6 +168,18 @@ export default function AdminReportsPage() {
               <option value="earnings">Earnings Report</option>
               <option value="hosts">Hosts Report</option>
             </select>
+            {reportType === 'bookings' && (
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="border border-gray-300 rounded px-3 py-2 text-sm"
+              >
+                <option value="all">All statuses</option>
+                <option value="completed">Completed</option>
+                <option value="pending">Pending</option>
+                <option value="declined">Declined</option>
+              </select>
+            )}
             <button
               onClick={generateReport}
               className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
@@ -173,16 +213,26 @@ export default function AdminReportsPage() {
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="border-b">
-                    {Object.keys(reportData[0]).map((key) => (
-                      <th key={key} className="text-left py-2">{key}</th>
+                    {Object.keys(getFilteredData()[0] || reportData[0]).map((key) => (
+                      <th
+                        key={key}
+                        className="text-left py-2 px-4 text-xs font-semibold text-gray-600 whitespace-nowrap border-b"
+                      >
+                        {key}
+                      </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {reportData.map((row, index) => (
-                    <tr key={index} className="border-b">
+                  {getFilteredData().map((row, index) => (
+                    <tr key={index} className="border-b hover:bg-gray-50/80">
                       {Object.values(row).map((value, i) => (
-                        <td key={i} className="py-2">{String(value)}</td>
+                        <td
+                          key={i}
+                          className="py-2 px-4 align-top text-gray-800 text-xs whitespace-pre-wrap break-words max-w-xs"
+                        >
+                          {String(value)}
+                        </td>
                       ))}
                     </tr>
                   ))}
