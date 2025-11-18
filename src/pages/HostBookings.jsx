@@ -443,6 +443,4 @@ export default function HostBookingsPage() {
       </Snackbar>
     </>
   );
-};
-
-export default HostBookingsPage;
+}
