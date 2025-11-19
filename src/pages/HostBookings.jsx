@@ -246,7 +246,9 @@ export default function HostBookingsPage() {
 
         // If declining booking, send cancellation email to guest
         if (status === 'declined') {
+          console.log('DEBUG decline path entered', { bookingId, status });
           const bookingDoc = bookings.find((b) => b.id === bookingId);
+          console.log('DEBUG decline bookingDoc', bookingDoc);
           try {
             if (bookingDoc?.guestId) {
               const guestRef = doc(db, 'users', bookingDoc.guestId);
@@ -274,6 +276,7 @@ export default function HostBookingsPage() {
                         : 'N/A',
                   };
 
+                  console.log('DEBUG cancel email', { bookingId, guestEmail, guestName, bookingDetails });
                   await sendRefundNotification(guestEmail, guestName, bookingDetails);
                 }
               }

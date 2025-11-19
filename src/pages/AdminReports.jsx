@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../firebase.js';
 
@@ -7,8 +7,12 @@ export default function AdminReportsPage() {
   const [reportData, setReportData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate] = useState('');
+  const [baseDate, setBaseDate] = useState('');
+  const [periodType, setPeriodType] = useState('month'); // 'week' | 'month' | 'year'
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth(), 1);
+  });
 
   const generateReport = async () => {
     setLoading(true);
@@ -160,16 +164,39 @@ export default function AdminReportsPage() {
   const getFilteredData = () => {
     let filtered = [...reportData];
 
-    // Apply date range filter for all report types
-    if (startDate || endDate) {
-      const start = startDate ? new Date(`${startDate}T00:00:00`) : null;
-      const end = endDate ? new Date(`${endDate}T23:59:59`) : null;
+    // Apply date-based period filter (week / month / year) for all report types
+    if (baseDate) {
+      const base = new Date(`${baseDate}T00:00:00`);
+      const start = new Date(base);
+      const end = new Date(base);
+
+      if (periodType === 'week') {
+        // Start of week (assume Monday)
+        const day = start.getDay();
+        const diff = (day === 0 ? -6 : 1) - day; // convert Sunday(0) -> previous Monday
+        start.setDate(start.getDate() + diff);
+        // End of week (Sunday)
+        end.setTime(start.getTime());
+        end.setDate(start.getDate() + 6);
+        end.setHours(23, 59, 59, 999);
+      } else if (periodType === 'year') {
+        start.setMonth(0, 1);
+        start.setHours(0, 0, 0, 0);
+        end.setMonth(11, 31);
+        end.setHours(23, 59, 59, 999);
+      } else {
+        // Default: month
+        start.setDate(1);
+        start.setHours(0, 0, 0, 0);
+        end.setMonth(end.getMonth() + 1, 0); // last day of month
+        end.setHours(23, 59, 59, 999);
+      }
 
       filtered = filtered.filter((row) => {
         const d = getRowDate(row);
         if (!d) return false;
-        if (start && d < start) return false;
-        if (end && d > end) return false;
+        if (d < start) return false;
+        if (d > end) return false;
         return true;
       });
     }
@@ -195,6 +222,33 @@ export default function AdminReportsPage() {
       }
       return true;
     });
+  };
+
+  const calendarWeeks = useMemo(() => {
+    const monthStart = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1);
+    const monthEnd = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0);
+    const startDay = monthStart.getDay();
+    const daysInMonth = monthEnd.getDate();
+
+    const days = [];
+    for (let i = 0; i < startDay; i += 1) {
+      days.push(null);
+    }
+    for (let d = 1; d <= daysInMonth; d += 1) {
+      days.push(d);
+    }
+
+    const weeks = [];
+    for (let i = 0; i < days.length; i += 7) {
+      weeks.push(days.slice(i, i + 7));
+    }
+    return weeks;
+  }, [calendarMonth]);
+
+  const formatDateValue = (year, monthIndex, day) => {
+    const mm = String(monthIndex + 1).padStart(2, '0');
+    const dd = String(day).padStart(2, '0');
+    return `${year}-${mm}-${dd}`;
   };
 
   return (
@@ -230,21 +284,87 @@ export default function AdminReportsPage() {
                 <option value="declined">Declined</option>
               </select>
             )}
-            <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
-              <span className="font-semibold mr-1">Date range:</span>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="border border-gray-300 rounded px-2 py-1"
-              />
-              <span>to</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="border border-gray-300 rounded px-2 py-1"
-              />
+            <div className="flex flex-wrap items-center gap-4 text-xs text-gray-600">
+              <div>
+                <span className="block font-semibold mb-1">Date:</span>
+                <div className="inline-flex items-center gap-2 mb-1">
+                  <button
+                    type="button"
+                    className="px-2 py-1 border border-gray-300 rounded text-gray-700 bg-white hover:bg-gray-50"
+                    onClick={() =>
+                      setCalendarMonth(
+                        (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1),
+                      )}
+                  >
+                    1
+                  </button>
+                  <span className="text-xs font-medium text-gray-700">
+                    {calendarMonth.toLocaleString(undefined, { month: 'short', year: 'numeric' })}
+                  </span>
+                  <button
+                    type="button"
+                    className="px-2 py-1 border border-gray-300 rounded text-gray-700 bg-white hover:bg-gray-50"
+                    onClick={() =>
+                      setCalendarMonth(
+                        (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1),
+                      )}
+                  >
+                    7
+                  </button>
+                </div>
+                <div className="border border-gray-200 rounded-lg p-2 bg-white shadow-sm inline-block">
+                  <div className="grid grid-cols-7 gap-1 mb-1 text-[10px] text-gray-500">
+                    <span>Su</span>
+                    <span>Mo</span>
+                    <span>Tu</span>
+                    <span>We</span>
+                    <span>Th</span>
+                    <span>Fr</span>
+                    <span>Sa</span>
+                  </div>
+                  <div className="grid grid-cols-7 gap-1">
+                    {calendarWeeks.map((week, wi) =>
+                      week.map((day, di) => {
+                        if (!day) {
+                          return <span key={`${wi}-${di}`} className="h-7" />;
+                        }
+                        const value = formatDateValue(
+                          calendarMonth.getFullYear(),
+                          calendarMonth.getMonth(),
+                          day,
+                        );
+                        const isSelected = baseDate === value;
+                        return (
+                          <button
+                            key={`${wi}-${di}`}
+                            type="button"
+                            onClick={() => setBaseDate(value)}
+                            className={`h-7 w-7 rounded-full text-[11px] flex items-center justify-center border ${
+                              isSelected
+                                ? 'bg-green-600 text-white border-green-600'
+                                : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-100'
+                            }`}
+                          >
+                            {day}
+                          </button>
+                        );
+                      }),
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="font-semibold">Period:</span>
+                <select
+                  value={periodType}
+                  onChange={(e) => setPeriodType(e.target.value)}
+                  className="border border-gray-300 rounded px-2 py-1 text-xs bg-white"
+                >
+                  <option value="week">Weekly</option>
+                  <option value="month">Monthly</option>
+                  <option value="year">Yearly</option>
+                </select>
+              </div>
             </div>
             <button
               onClick={generateReport}
