@@ -6,6 +6,7 @@ export default function AdminAnalyticsPage() {
   const [reviews, setReviews] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [hostEarnings, setHostEarnings] = useState([]);
+  const [hostsById, setHostsById] = useState({});
   const [loading, setLoading] = useState(true);
   const [subscriptionRevenue, setSubscriptionRevenue] = useState(0);
 
@@ -39,16 +40,19 @@ export default function AdminAnalyticsPage() {
         });
         setHostEarnings(earningsData);
 
-        // Fetch hosts to compute subscription revenue (sum of subscriptionPrice)
+        // Fetch hosts (for subscription revenue and name resolution)
         const hostsRef = collection(db, 'hosts');
         const hostsSnap = await getDocs(hostsRef);
+        const hostsMap = {};
         let subscriptionTotal = 0;
         hostsSnap.forEach((docSnap) => {
           const data = docSnap.data();
+          hostsMap[docSnap.id] = data;
           if (typeof data.subscriptionPrice === 'number') {
             subscriptionTotal += data.subscriptionPrice;
           }
         });
+        setHostsById(hostsMap);
         setSubscriptionRevenue(subscriptionTotal);
       } catch (err) {
         // eslint-disable-next-line no-console
@@ -84,18 +88,27 @@ export default function AdminAnalyticsPage() {
       totalRevenue += amount;
     });
     topHosts = [...hostEarnings]
-      .map((h) => ({
-        id: h.id,
-        // Prefer human-friendly identifiers; only show raw IDs as a last resort
-        hostName:
+      .map((h) => {
+        const hostId = h.hostId || h.id;
+        const hostDoc = hostsById[hostId] || {};
+
+        const resolvedName =
+          hostDoc.displayName ||
+          hostDoc.hostName ||
+          hostDoc.name ||
+          hostDoc.email ||
           h.hostName ||
           h.displayName ||
           h.hostEmail ||
           h.email ||
-          h.hostId ||
-          h.id,
-        totalEarnings: typeof h.totalEarnings === 'number' ? h.totalEarnings : 0,
-      }))
+          hostId;
+
+        return {
+          id: h.id,
+          hostName: resolvedName,
+          totalEarnings: typeof h.totalEarnings === 'number' ? h.totalEarnings : 0,
+        };
+      })
       .sort((a, b) => b.totalEarnings - a.totalEarnings)
       .slice(0, 5);
   }
