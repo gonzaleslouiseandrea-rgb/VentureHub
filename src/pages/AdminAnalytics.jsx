@@ -7,6 +7,7 @@ export default function AdminAnalyticsPage() {
   const [bookings, setBookings] = useState([]);
   const [hostEarnings, setHostEarnings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [subscriptionRevenue, setSubscriptionRevenue] = useState(0);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -37,6 +38,18 @@ export default function AdminAnalyticsPage() {
           earningsData.push({ id: docSnap.id, ...docSnap.data() });
         });
         setHostEarnings(earningsData);
+
+        // Fetch hosts to compute subscription revenue (sum of subscriptionPrice)
+        const hostsRef = collection(db, 'hosts');
+        const hostsSnap = await getDocs(hostsRef);
+        let subscriptionTotal = 0;
+        hostsSnap.forEach((docSnap) => {
+          const data = docSnap.data();
+          if (typeof data.subscriptionPrice === 'number') {
+            subscriptionTotal += data.subscriptionPrice;
+          }
+        });
+        setSubscriptionRevenue(subscriptionTotal);
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error('Error loading analytics data', err);
@@ -114,9 +127,14 @@ export default function AdminAnalyticsPage() {
             )}
           </div>
           <div className="bg-white border border-green-100 rounded-2xl p-4 shadow-sm">
-            <p className="text-xs font-semibold text-gray-500 uppercase">Total Revenue (Hosts)</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase">Subscription Revenue</p>
             <p className="mt-2 text-2xl font-bold text-gray-900">
-              {loading ? '—' : `₱${totalRevenue.toLocaleString()}`}
+              {loading ? '—' : `₱${subscriptionRevenue.toLocaleString()}`}
+            </p>
+            <p className="mt-1 text-xs text-gray-500">
+              {loading
+                ? '—'
+                : `Host earnings recorded: ₱${totalRevenue.toLocaleString()}`}
             </p>
           </div>
         </div>

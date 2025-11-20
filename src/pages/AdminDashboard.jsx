@@ -12,8 +12,11 @@ export default function AdminDashboardPage() {
     totalListings: 0,
     totalBookings: 0,
     totalEarnings: 0,
+    subscriptionRevenue: 0,
     totalSubscriptions: 0,
     totalTransactions: 0,
+    totalReviews: 0,
+    averageRating: 0,
   });
   const [loading, setLoading] = useState(true);
   const [activityLoading, setActivityLoading] = useState(true);
@@ -68,11 +71,15 @@ export default function AdminDashboardPage() {
           totalEarnings += data.totalEarnings || 0;
         });
 
-        // Fetch total subscriptions (hosts with subscriptionPlan)
+        // Fetch total subscriptions (hosts with subscriptionPlan) and subscription revenue
         let totalSubscriptions = 0;
+        let subscriptionRevenue = 0;
         hostsSnap.forEach((docSnap) => {
           const data = docSnap.data();
           if (data.subscriptionPlan) totalSubscriptions += 1;
+          if (typeof data.subscriptionPrice === 'number') {
+            subscriptionRevenue += data.subscriptionPrice;
+          }
         });
 
         // Fetch total transactions from walletTransactions
@@ -87,6 +94,7 @@ export default function AdminDashboardPage() {
           totalListings,
           totalBookings,
           totalEarnings,
+          subscriptionRevenue,
           totalSubscriptions,
           totalTransactions,
         });
@@ -185,6 +193,22 @@ export default function AdminDashboardPage() {
           .sort((a, b) => b.rating - a.rating)
           .slice(0, 5);
         setTopReviews(topReviewsArr);
+
+        // Aggregate review stats for dashboard cards
+        let ratingSum = 0;
+        let ratingCount = 0;
+        reviewsData.forEach((r) => {
+          if (typeof r.rating === 'number') {
+            ratingSum += r.rating;
+            ratingCount += 1;
+          }
+        });
+        const averageRating = ratingCount ? ratingSum / ratingCount : 0;
+        setStats((prev) => ({
+          ...prev,
+          totalReviews: reviewsData.length,
+          averageRating,
+        }));
       } catch (err) {
         // eslint-disable-next-line no-console
         console.error('Error loading recent activity', err);
@@ -259,11 +283,11 @@ export default function AdminDashboardPage() {
         {/* Secondary stats cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-white border border-green-100 rounded-2xl p-4 shadow-sm">
-            <p className="text-xs font-semibold text-gray-500 uppercase">Total Revenue</p>
+            <p className="text-xs font-semibold text-gray-500 uppercase">Subscription Revenue</p>
             <p className="mt-2 text-2xl font-bold text-gray-900">
-              {loading ? '—' : `₱${stats.totalEarnings.toLocaleString()}`}
+              {loading ? '—' : `₱${stats.subscriptionRevenue.toLocaleString()}`}
             </p>
-            <p className="mt-1 text-xs text-gray-500">Host earnings recorded in the platform.</p>
+            <p className="mt-1 text-xs text-gray-500">Based on current host subscription plans.</p>
           </div>
           <div className="bg-white/90 border border-gray-200 rounded-2xl p-4 shadow-sm">
             <p className="text-xs font-semibold text-gray-500 uppercase">Active Subscriptions</p>
@@ -274,6 +298,19 @@ export default function AdminDashboardPage() {
             <p className="text-xs font-semibold text-gray-500 uppercase">Transactions</p>
             <p className="mt-2 text-2xl font-bold text-gray-900">{loading ? '—' : stats.totalTransactions}</p>
             <p className="mt-1 text-xs text-gray-500">Wallet transactions recorded.</p>
+          </div>
+        </div>
+
+        {/* Reviews summary cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="bg-white/90 border border-green-100 rounded-2xl p-4 shadow-sm">
+            <p className="text-xs font-semibold text-gray-500 uppercase">Guest Reviews</p>
+            <p className="mt-2 text-2xl font-bold text-gray-900">{loading ? '—' : stats.totalReviews}</p>
+            <p className="mt-1 text-xs text-gray-500">
+              {loading || !stats.totalReviews
+                ? 'No reviews recorded yet.'
+                : `Average rating ${stats.averageRating.toFixed(1)} / 5`}
+            </p>
           </div>
         </div>
 

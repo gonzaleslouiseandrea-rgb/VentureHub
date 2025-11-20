@@ -250,6 +250,8 @@ export default function HostListingsPage() {
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('success');
   const [freeListingCredits, setFreeListingCredits] = useState(0);
+  const [reviewsByListing, setReviewsByListing] = useState({}); // { [listingId]: { avg, count, reviews: [] } }
+  const [expandedReviews, setExpandedReviews] = useState({}); // { [listingId]: boolean }
 
   useEffect(() => {
     const loadHostAndListings = async () => {
@@ -309,6 +311,61 @@ export default function HostListingsPage() {
 
     loadHostAndListings();
   }, [user]);
+
+  useEffect(() => {
+    const loadListingReviews = async () => {
+      if (!user || hostListings.length === 0) {
+        setReviewsByListing({});
+        return;
+      }
+
+      try {
+        const reviewsRef = collection(db, 'reviews');
+        const entries = await Promise.all(
+          hostListings.map(async (listing) => {
+            const rq = query(reviewsRef, where('listingId', '==', listing.id));
+            const rsnap = await getDocs(rq);
+            if (rsnap.empty) return [listing.id, { avg: null, count: 0, reviews: [] }];
+            let sum = 0;
+            let count = 0;
+            const reviews = [];
+            rsnap.forEach((r) => {
+              const data = r.data();
+              if (typeof data.rating === 'number') {
+                sum += data.rating;
+                count += 1;
+              }
+              reviews.push({ id: r.id, ...data });
+            });
+            if (count === 0) return [listing.id, { avg: null, count: 0, reviews: [] }];
+
+            reviews.sort((a, b) => {
+              const aDate = a.createdAt?.toDate ? a.createdAt.toDate() : null;
+              const bDate = b.createdAt?.toDate ? b.createdAt.toDate() : null;
+              if (!aDate && !bDate) return 0;
+              if (!aDate) return 1;
+              if (!bDate) return -1;
+              return bDate - aDate;
+            });
+
+            return [listing.id, { avg: sum / count, count, reviews }];
+          }),
+        );
+
+        const map = {};
+        entries.forEach(([id, value]) => {
+          map[id] = value;
+        });
+        setReviewsByListing(map);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('Error loading listing reviews for host', err);
+        setReviewsByListing({});
+      }
+    };
+
+    loadListingReviews();
+  }, [user, hostListings]);
 
   // If we arrived from the dashboard with /host/listings?edit=LISTING_ID,
   // automatically load that listing into edit mode once listings are available.
@@ -1371,6 +1428,67 @@ export default function HostListingsPage() {
           {snackbarMessage}
         </div>
       )}
+      <div className="mt-10">
+        <h3 className="text-lg font-semibold text-gray-900 mb-3">Guest reviews about your listings</h3>
+        {publishedListings.length === 0 ? (
+          <p className="text-sm text-gray-600">You have no published listings yet. Publish a listing to start receiving reviews.</p>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {publishedListings.map((listing) => {
+              const stats = reviewsByListing[listing.id] || { avg: null, count: 0 };
+              const isExpanded = expandedReviews[listing.id] || false;
+              return (
+                <div key={listing.id} className="border border-gray-200 rounded-lg p-4 bg-white shadow-sm">
+                  <h4 className="text-sm font-semibold text-gray-900 mb-1">{listing.title || 'Untitled listing'}</h4>
+                  <p className="text-xs text-gray-500 mb-2">{listing.location || 'Location not set'}</p>
+                  {stats.count === 0 || !stats.avg ? (
+                    <p className="text-xs text-gray-600">No reviews yet.</p>
+                  ) : (
+                    <div className="mb-1">
+                      <p className="text-xs text-gray-800">
+                        ⭐ {stats.avg.toFixed(1)} / 5 · {stats.count} review{stats.count !== 1 ? 's' : ''}
+                      </p>
+                    </div>
+                  )}
+                  {stats.count > 0 && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedReviews((prev) => ({
+                          ...prev,
+                          [listing.id]: !prev[listing.id],
+                        }))}
+                      className="mt-1 mb-2 text-[11px] text-green-700 font-medium hover:underline"
+                    >
+                      {isExpanded ? 'Hide reviews' : 'View reviews'}
+                    </button>
+                  )}
+                  {isExpanded && stats.reviews && stats.reviews.length > 0 && (
+                    <div className="mt-1 border-t border-gray-100 pt-2 space-y-2 max-h-40 overflow-y-auto">
+                      {stats.reviews.map((r) => {
+                        const createdAt = r.createdAt?.toDate ? r.createdAt.toDate() : null;
+                        return (
+                          <div key={r.id} className="text-xs text-gray-800">
+                            <div className="flex items-center justify-between mb-0.5">
+                              <span className="font-semibold">⭐ {typeof r.rating === 'number' ? `${r.rating}/5` : '–'}</span>
+                              {createdAt && (
+                                <span className="text-[10px] text-gray-500">{createdAt.toLocaleDateString()}</span>
+                              )}
+                            </div>
+                            {r.comment && (
+                              <p className="text-[11px] text-gray-700 whitespace-pre-wrap break-words">{r.comment}</p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

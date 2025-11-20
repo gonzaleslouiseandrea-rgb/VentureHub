@@ -36,6 +36,12 @@ export default function AdminReportsPage() {
         snap.forEach((docSnap) => {
           data.push({ id: docSnap.id, ...docSnap.data() });
         });
+      } else if (reportType === 'reviews') {
+        const ref = collection(db, 'reviews');
+        const snap = await getDocs(ref);
+        snap.forEach((docSnap) => {
+          data.push({ id: docSnap.id, ...docSnap.data() });
+        });
       }
       setReportData(data);
     } catch (err) {
@@ -69,29 +75,117 @@ export default function AdminReportsPage() {
 
     const filtered = getFilteredData();
     if (filtered.length === 0) return;
+    // Decide which columns are most important for each report type
+    const columnConfig = {
+      bookings: [
+        { key: 'listingTitle', label: 'Listing' },
+        { key: 'guestId', label: 'Guest ID' },
+        { key: 'status', label: 'Status' },
+        { key: 'totalPrice', label: 'Total Price' },
+        { key: 'createdAt', label: 'Created' },
+      ],
+      earnings: [
+        { key: 'hostName', label: 'Host' },
+        { key: 'id', label: 'Host ID' },
+        { key: 'totalEarnings', label: 'Total Earnings' },
+        { key: 'lastPayoutAt', label: 'Last Payout' },
+      ],
+      hosts: [
+        { key: 'displayName', label: 'Host Name' },
+        { key: 'email', label: 'Email' },
+        { key: 'subscriptionPlan', label: 'Plan' },
+        { key: 'listingLimit', label: 'Listing Limit' },
+        { key: 'createdAt', label: 'Joined' },
+      ],
+      reviews: [
+        { key: 'listingTitle', label: 'Listing' },
+        { key: 'hostId', label: 'Host ID' },
+        { key: 'guestEmail', label: 'Guest Email' },
+        { key: 'rating', label: 'Rating' },
+        { key: 'comment', label: 'Comment' },
+        { key: 'createdAt', label: 'Created' },
+      ],
+    };
 
-    const headers = Object.keys(filtered[0]);
+    const columns = columnConfig[reportType] || Object.keys(filtered[0]).map((key) => ({ key, label: key }));
+
     const rowsHtml = filtered
       .map((row) => {
-        const cells = headers
-          .map((key) => `<td style="padding:8px;border:1px solid #e5e7eb;font-size:12px;">${String(row[key] ?? '')}</td>`)
+        const cells = columns
+          .map((col) => {
+            const value = row[col.key];
+            if (value && value.toDate && typeof value.toDate === 'function') {
+              return `<td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;">${value
+                .toDate()
+                .toLocaleString()}</td>`;
+            }
+            return `<td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;">${
+              col.key.toLowerCase().includes('price') || col.key.toLowerCase().includes('earning')
+                ? `₱${Number(value || 0).toLocaleString()}`
+                : String(value ?? '')
+            }</td>`;
+          })
           .join('');
         return `<tr>${cells}</tr>`;
       })
       .join('');
 
-    const headerCells = headers
-      .map((key) => `<th style="text-align:left;padding:8px;border:1px solid #e5e7eb;font-size:12px;background:#f3f4f6;">${key}</th>`)
+    const headerCells = columns
+      .map(
+        (col) =>
+          `<th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:600;color:#065f46;border-bottom:1px solid #d1fae5;background:#ecfdf5;">${
+            col.label
+          }</th>`,
+      )
       .join('');
 
     const titleMap = {
       bookings: 'Bookings Report',
       earnings: 'Earnings Report',
       hosts: 'Hosts Report',
+      reviews: 'Reviews Report',
     };
 
     const title = titleMap[reportType] || 'Report';
     const generatedAt = new Date().toLocaleString();
+
+    // Summary overview
+    const totalRows = filtered.length;
+    let totalAmount = 0;
+    if (reportType === 'bookings') {
+      filtered.forEach((row) => {
+        if (typeof row.totalPrice === 'number') totalAmount += row.totalPrice;
+      });
+    } else if (reportType === 'earnings') {
+      filtered.forEach((row) => {
+        if (typeof row.totalEarnings === 'number') totalAmount += row.totalEarnings;
+      });
+    }
+
+    let periodLabel = 'All data';
+    if (baseDate) {
+      const base = new Date(`${baseDate}T00:00:00`);
+      if (periodType === 'week') {
+        const start = new Date(base);
+        const day = start.getDay();
+        const diff = (day === 0 ? -6 : 1) - day;
+        start.setDate(start.getDate() + diff);
+        const end = new Date(start);
+        end.setDate(start.getDate() + 6);
+        periodLabel = `Week of ${start.toLocaleDateString()} – ${end.toLocaleDateString()}`;
+      } else if (periodType === 'year') {
+        periodLabel = `Year ${base.getFullYear()}`;
+      } else {
+        periodLabel = `${base.toLocaleString(undefined, { month: 'long', year: 'numeric' })}`;
+      }
+    }
+
+    const amountLabel =
+      reportType === 'bookings'
+        ? `Total Booking Value: ₱${totalAmount.toLocaleString()}`
+        : reportType === 'earnings'
+          ? `Total Host Earnings: ₱${totalAmount.toLocaleString()}`
+          : '';
 
     const html = `<!DOCTYPE html>
 <html>
@@ -99,38 +193,60 @@ export default function AdminReportsPage() {
     <meta charSet="utf-8" />
     <title>${title}</title>
     <style>
-      body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 24px; background: #f9fafb; color: #111827; }
-      .vh-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-      .vh-brand { font-size: 18px; font-weight: 700; color: #16a34a; }
-      .vh-meta { font-size: 11px; color: #6b7280; text-align: right; }
-      h1 { font-size: 20px; margin: 4px 0 2px 0; }
-      p { font-size: 12px; margin-top: 0; color: #6b7280; }
-      hr { border: 0; border-top: 1px solid #e5e7eb; margin: 12px 0 16px 0; }
+      body { font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; padding: 24px; background: #ecfdf5; color: #064e3b; }
+      .vh-shell { max-width: 1000px; margin: 0 auto; background: #ffffff; border-radius: 16px; box-shadow: 0 15px 40px rgba(15, 118, 110, 0.18); overflow: hidden; border: 1px solid #d1fae5; }
+      .vh-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: linear-gradient(90deg, #065f46, #16a34a); color: #ecfdf5; }
+      .vh-brand { font-size: 18px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+      .vh-meta { font-size: 11px; text-align: right; opacity: 0.9; }
+      .vh-body { padding: 18px 20px 22px; }
+      h1 { font-size: 22px; margin: 0 0 4px 0; color: #064e3b; }
+      p { font-size: 12px; margin-top: 0; color: #4b5563; }
+      .vh-summary { display: flex; gap: 12px; margin: 10px 0 14px; flex-wrap: wrap; }
+      .vh-chip { flex: 1 1 180px; min-width: 0; background: #ecfdf5; border-radius: 999px; padding: 6px 12px; border: 1px solid #d1fae5; font-size: 11px; display: flex; align-items: center; justify-content: space-between; color: #065f46; }
+      .vh-chip-label { font-weight: 600; margin-right: 6px; }
       table { border-collapse: collapse; width: 100%; margin-top: 4px; }
+      tbody tr:nth-child(even) { background: #f9fafb; }
       @media print {
-        body { background: #ffffff; }
+        body { background: #ffffff; padding: 12px; }
+        .vh-shell { box-shadow: none; border-radius: 0; border: none; }
       }
     </style>
   </head>
   <body>
-    <div class="vh-header">
-      <div class="vh-brand">VentureHub Admin</div>
-      <div class="vh-meta">
-        <div>${title}</div>
-        <div>Generated: ${generatedAt}</div>
+    <div class="vh-shell">
+      <div class="vh-header">
+        <div class="vh-brand">VentureHub Admin</div>
+        <div class="vh-meta">
+          <div>${title}</div>
+          <div>Generated: ${generatedAt}</div>
+        </div>
+      </div>
+      <div class="vh-body">
+        <h1>${title}</h1>
+        <p>Summary view of platform data exported from the VentureHub admin panel.</p>
+        <div class="vh-summary">
+          <div class="vh-chip">
+            <span class="vh-chip-label">Rows:</span>
+            <span>${totalRows.toLocaleString()}</span>
+          </div>
+          <div class="vh-chip">
+            <span class="vh-chip-label">Period:</span>
+            <span>${periodLabel}</span>
+          </div>
+          ${amountLabel
+            ? `<div class="vh-chip"><span class="vh-chip-label">Total:</span><span>${amountLabel.replace('Total ', '')}</span></div>`
+            : ''}
+        </div>
+        <table>
+          <thead>
+            <tr>${headerCells}</tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
       </div>
     </div>
-    <h1>${title}</h1>
-    <p>Platform report exported from VentureHub admin panel.</p>
-    <hr />
-    <table>
-      <thead>
-        <tr>${headerCells}</tr>
-      </thead>
-      <tbody>
-        ${rowsHtml}
-      </tbody>
-    </table>
   </body>
 </html>`;
 
@@ -271,6 +387,7 @@ export default function AdminReportsPage() {
               <option value="bookings">Bookings Report</option>
               <option value="earnings">Earnings Report</option>
               <option value="hosts">Hosts Report</option>
+              <option value="reviews">Reviews Report</option>
             </select>
             {reportType === 'bookings' && (
               <select

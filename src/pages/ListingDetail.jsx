@@ -56,6 +56,13 @@ export default function ListingDetailPage() {
 
   const [expandedImage, setExpandedImage] = useState(null);
 
+  const [reviews, setReviews] = useState([]);
+  const [loadingReviews, setLoadingReviews] = useState(true);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
+  const [reviewError, setReviewError] = useState('');
+
   const paypalClientId = import.meta.env.VITE_PAYPAL_CLIENT_ID || '';
 
   const getDateRangeText = () => {
@@ -290,6 +297,94 @@ export default function ListingDetailPage() {
     };
     fetchListing();
   }, [id]);
+
+  useEffect(() => {
+    const loadReviews = async () => {
+      if (!id) {
+        setReviews([]);
+        setLoadingReviews(false);
+        return;
+      }
+
+      try {
+        setLoadingReviews(true);
+        const reviewsRef = collection(db, 'reviews');
+        const q = query(reviewsRef, where('listingId', '==', id));
+        const snap = await getDocs(q);
+        const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        items.sort((a, b) => {
+          const aDate = a.createdAt?.toDate ? a.createdAt.toDate() : null;
+          const bDate = b.createdAt?.toDate ? b.createdAt.toDate() : null;
+          if (!aDate && !bDate) return 0;
+          if (!aDate) return 1;
+          if (!bDate) return -1;
+          return bDate - aDate;
+        });
+        setReviews(items);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('Error loading listing reviews', err);
+        setReviews([]);
+      } finally {
+        setLoadingReviews(false);
+      }
+    };
+
+    loadReviews();
+  }, [id]);
+
+  const handleSubmitReview = async () => {
+    if (!user) {
+      navigate('/login');
+      return;
+    }
+    if (!reviewRating || reviewRating < 1 || reviewRating > 5) {
+      setReviewError('Please select a rating between 1 and 5.');
+      return;
+    }
+    if (!reviewComment.trim()) {
+      setReviewError('Please enter a short comment about your stay.');
+      return;
+    }
+
+    try {
+      setSubmittingReview(true);
+      setReviewError('');
+      const reviewsRef = collection(db, 'reviews');
+      await addDoc(reviewsRef, {
+        listingId: id,
+        hostId: listing?.hostId || null,
+        listingTitle: listing?.title || '',
+        guestId: user.uid,
+        guestEmail: user.email || '',
+        rating: Number(reviewRating),
+        comment: reviewComment.trim(),
+        createdAt: serverTimestamp(),
+      });
+
+      setReviewComment('');
+      setReviewRating(5);
+
+      const q = query(reviewsRef, where('listingId', '==', id));
+      const snap = await getDocs(q);
+      const items = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      items.sort((a, b) => {
+        const aDate = a.createdAt?.toDate ? a.createdAt.toDate() : null;
+        const bDate = b.createdAt?.toDate ? b.createdAt.toDate() : null;
+        if (!aDate && !bDate) return 0;
+        if (!aDate) return 1;
+        if (!bDate) return -1;
+        return bDate - aDate;
+      });
+      setReviews(items);
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Error submitting review', err);
+      setReviewError('Unable to submit review right now. Please try again.');
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
 
   // Load guest wallet balance
   useEffect(() => {
