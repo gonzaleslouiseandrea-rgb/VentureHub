@@ -77,16 +77,12 @@ export default function AdminReportsPage() {
     if (filtered.length === 0) return;
     // Decide which columns are most important for each report type
     const columnConfig = {
-      bookings: [
-        { key: 'listingTitle', label: 'Listing' },
-        { key: 'guestId', label: 'Guest ID' },
-        { key: 'status', label: 'Status' },
-        { key: 'totalPrice', label: 'Total Price' },
-        { key: 'createdAt', label: 'Created' },
-      ],
+      // For bookings we will override below with a very focused layout:
+      // Host name, Listing name, Guests, Guest who booked, Booking amount
+      bookings: [],
+      // Earnings and reviews use friendly display names instead of raw IDs/emails
       earnings: [
-        { key: 'hostName', label: 'Host' },
-        { key: 'id', label: 'Host ID' },
+        { key: 'hostDisplay', label: 'Host' },
         { key: 'totalEarnings', label: 'Total Earnings' },
         { key: 'lastPayoutAt', label: 'Last Payout' },
       ],
@@ -99,45 +95,194 @@ export default function AdminReportsPage() {
       ],
       reviews: [
         { key: 'listingTitle', label: 'Listing' },
-        { key: 'hostId', label: 'Host ID' },
-        { key: 'guestEmail', label: 'Guest Email' },
+        { key: 'hostDisplay', label: 'Host' },
+        { key: 'guestDisplay', label: 'Guest' },
         { key: 'rating', label: 'Rating' },
         { key: 'comment', label: 'Comment' },
         { key: 'createdAt', label: 'Created' },
       ],
     };
 
-    const columns = columnConfig[reportType] || Object.keys(filtered[0]).map((key) => ({ key, label: key }));
+    let columns = columnConfig[reportType] || Object.keys(filtered[0]).map((key) => ({ key, label: key }));
 
-    const rowsHtml = filtered
-      .map((row) => {
-        const cells = columns
-          .map((col) => {
-            const value = row[col.key];
-            if (value && value.toDate && typeof value.toDate === 'function') {
-              return `<td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;">${value
+    let rowsHtml;
+    let headerCells;
+
+    if (reportType === 'bookings') {
+      // Focused bookings layout matching requested fields
+      columns = [
+        { key: 'hostName', label: 'Host' },
+        { key: 'listingTitle', label: 'Listing' },
+        { key: 'guestsCount', label: 'Guests' },
+        { key: 'guestName', label: 'Guest who booked' },
+        { key: 'totalPrice', label: 'Booking amount' },
+      ];
+
+      headerCells = columns
+        .map(
+          (col) =>
+            `<th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:600;color:#065f46;border-bottom:1px solid #d1fae5;background:#ecfdf5;">${
+              col.label
+            }</th>`,
+        )
+        .join('');
+
+      rowsHtml = filtered
+        .map((row) => {
+          const hostName =
+            row.hostName ||
+            row.hostDisplayName ||
+            row.hostEmail ||
+            row.hostId ||
+            'N/A';
+          const listingName = row.listingTitle || row.listingName || 'N/A';
+          const guestsCount =
+            row.guests ||
+            row.guestCount ||
+            row.numberOfGuests ||
+            row.guestsCount ||
+            '';
+          const guestName =
+            row.guestName ||
+            row.guestFullName ||
+            row.guestEmail ||
+            row.guestId ||
+            'N/A';
+          const amount =
+            typeof row.totalPrice === 'number'
+              ? `₱${row.totalPrice.toLocaleString()}`
+              : '₱0';
+
+          return `
+            <tr>
+              <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;">${hostName}</td>
+              <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;">${listingName}</td>
+              <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;">${guestsCount}</td>
+              <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;">${guestName}</td>
+              <td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;">${amount}</td>
+            </tr>
+          `;
+        })
+        .join('');
+    } else if (reportType === 'earnings') {
+      // Custom rendering so we can show a nice Host name instead of raw IDs
+      headerCells = columns
+        .map(
+          (col) =>
+            `<th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:600;color:#065f46;border-bottom:1px solid #d1fae5;background:#ecfdf5;">${
+              col.label
+            }</th>`,
+        )
+        .join('');
+
+      rowsHtml = filtered
+        .map((row) => {
+          const hostDisplay =
+            row.hostName ||
+            row.hostDisplayName ||
+            row.hostEmail ||
+            row.id ||
+            'N/A';
+          const hostCell = `<td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;">${hostDisplay}</td>`;
+
+          const earningsValue = typeof row.totalEarnings === 'number' ? row.totalEarnings : 0;
+          const earningsCell = `<td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;">₱${earningsValue.toLocaleString()}</td>`;
+
+          const payoutValue = row.lastPayoutAt;
+          const payoutCell = payoutValue && payoutValue.toDate && typeof payoutValue.toDate === 'function'
+            ? `<td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;">${payoutValue
                 .toDate()
-                .toLocaleString()}</td>`;
-            }
-            return `<td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;">${
-              col.key.toLowerCase().includes('price') || col.key.toLowerCase().includes('earning')
-                ? `₱${Number(value || 0).toLocaleString()}`
-                : String(value ?? '')
-            }</td>`;
-          })
-          .join('');
-        return `<tr>${cells}</tr>`;
-      })
-      .join('');
+                .toLocaleString()}</td>`
+            : '<td style="padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;">—</td>';
 
-    const headerCells = columns
-      .map(
-        (col) =>
-          `<th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:600;color:#065f46;border-bottom:1px solid #d1fae5;background:#ecfdf5;">${
-            col.label
-          }</th>`,
-      )
-      .join('');
+          return `<tr>${hostCell}${earningsCell}${payoutCell}</tr>`;
+        })
+        .join('');
+
+      headerCells = columns
+        .map(
+          (col) =>
+            `<th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:600;color:#065f46;border-bottom:1px solid #d1fae5;background:#ecfdf5;">${
+              col.label
+            }</th>`,
+        )
+        .join('');
+    } else if (reportType === 'reviews') {
+      headerCells = columns
+        .map(
+          (col) =>
+            `<th style="text-align:left;padding:8px 10px;font-size:11px;font-weight:600;color:#065f46;border-bottom:1px solid #d1fae5;background:#ecfdf5;">${
+              col.label
+            }</th>`,
+        )
+        .join('');
+
+      rowsHtml = filtered
+        .map((row) => {
+          const hostDisplay =
+            row.hostName ||
+            row.hostDisplayName ||
+            row.hostEmail ||
+            row.hostId ||
+            'N/A';
+          const guestDisplay =
+            row.guestName ||
+            row.guestFullName ||
+            row.guestEmail ||
+            row.guestId ||
+            'N/A';
+
+          const listingCell = `<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;\">${row.listingTitle || row.listingName || 'N/A'}</td>`;
+          const hostCell = `<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;\">${hostDisplay}</td>`;
+          const guestCell = `<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;\">${guestDisplay}</td>`;
+          const ratingCell = `<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;\">${row.rating ?? ''}</td>`;
+
+          const createdVal = row.createdAt;
+          const createdCell = createdVal && createdVal.toDate && typeof createdVal.toDate === 'function'
+            ? `<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;\">${createdVal
+                .toDate()
+                .toLocaleString()}</td>`
+            : '<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;\">—</td>';
+
+          const commentCell = `<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;\">${
+            row.comment ? String(row.comment) : ''
+          }</td>`;
+
+          return `<tr>${listingCell}${hostCell}${guestCell}${ratingCell}${commentCell}${createdCell}</tr>`;
+        })
+        .join('');
+    } else {
+      // Generic layout for other report types using columnConfig
+      rowsHtml = filtered
+        .map((row) => {
+          const cells = columns
+            .map((col) => {
+              const value = row[col.key];
+              if (value && value.toDate && typeof value.toDate === 'function') {
+                return `<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;\">${value
+                  .toDate()
+                  .toLocaleString()}</td>`;
+              }
+              return `<td style=\"padding:8px 10px;border-bottom:1px solid #e5e7eb;font-size:11px;\">${
+                col.key.toLowerCase().includes('price') || col.key.toLowerCase().includes('earning')
+                  ? `₱${Number(value || 0).toLocaleString()}`
+                  : String(value ?? '')
+              }</td>`;
+            })
+            .join('');
+          return `<tr>${cells}</tr>`;
+        })
+        .join('');
+
+      headerCells = columns
+        .map(
+          (col) =>
+            `<th style=\"text-align:left;padding:8px 10px;font-size:11px;font-weight:600;color:#065f46;border-bottom:1px solid #d1fae5;background:#ecfdf5;\">${
+              col.label
+            }</th>`,
+        )
+        .join('');
+    }
 
     const titleMap = {
       bookings: 'Bookings Report',
@@ -225,10 +370,6 @@ export default function AdminReportsPage() {
         <h1>${title}</h1>
         <p>Summary view of platform data exported from the VentureHub admin panel.</p>
         <div class="vh-summary">
-          <div class="vh-chip">
-            <span class="vh-chip-label">Rows:</span>
-            <span>${totalRows.toLocaleString()}</span>
-          </div>
           <div class="vh-chip">
             <span class="vh-chip-label">Period:</span>
             <span>${periodLabel}</span>
@@ -413,7 +554,7 @@ export default function AdminReportsPage() {
                         (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1),
                       )}
                   >
-                    1
+                    &lt;
                   </button>
                   <span className="text-xs font-medium text-gray-700">
                     {calendarMonth.toLocaleString(undefined, { month: 'short', year: 'numeric' })}
@@ -426,7 +567,7 @@ export default function AdminReportsPage() {
                         (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1),
                       )}
                   >
-                    7
+                    &gt;
                   </button>
                 </div>
                 <div className="border border-gray-200 rounded-lg p-2 bg-white shadow-sm inline-block">
@@ -516,29 +657,175 @@ export default function AdminReportsPage() {
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="border-b">
-                    {Object.keys(getFilteredData()[0] || reportData[0]).map((key) => (
-                      <th
-                        key={key}
-                        className="text-left py-2 px-4 text-xs font-semibold text-gray-600 whitespace-nowrap border-b"
-                      >
-                        {key}
-                      </th>
-                    ))}
+                    {(() => {
+                      const filtered = getFilteredData();
+                      if (filtered.length === 0) return null;
+
+                      if (reportType === 'bookings') {
+                        const headers = ['Host', 'Listing', 'Guests', 'Guest who booked', 'Booking amount'];
+                        return headers.map((label) => (
+                          <th
+                            key={label}
+                            className="text-left py-2 px-4 text-xs font-semibold text-gray-600 whitespace-nowrap border-b"
+                          >
+                            {label}
+                          </th>
+                        ));
+                      }
+
+                      if (reportType === 'earnings') {
+                        const headers = ['Host', 'Total Earnings', 'Last Payout'];
+                        return headers.map((label) => (
+                          <th
+                            key={label}
+                            className="text-left py-2 px-4 text-xs font-semibold text-gray-600 whitespace-nowrap border-b"
+                          >
+                            {label}
+                          </th>
+                        ));
+                      }
+
+                      if (reportType === 'reviews') {
+                        const headers = ['Listing', 'Host', 'Guest', 'Rating', 'Comment', 'Created'];
+                        return headers.map((label) => (
+                          <th
+                            key={label}
+                            className="text-left py-2 px-4 text-xs font-semibold text-gray-600 whitespace-nowrap border-b"
+                          >
+                            {label}
+                          </th>
+                        ));
+                      }
+
+                      // Hosts and any other reports: show keys as-is
+                      return Object.keys(filtered[0]).map((key) => (
+                        <th
+                          key={key}
+                          className="text-left py-2 px-4 text-xs font-semibold text-gray-600 whitespace-nowrap border-b"
+                        >
+                          {key}
+                        </th>
+                      ));
+                    })()}
                   </tr>
                 </thead>
                 <tbody>
-                  {getFilteredData().map((row, index) => (
-                    <tr key={index} className="border-b hover:bg-gray-50/80">
-                      {Object.values(row).map((value, i) => (
-                        <td
-                          key={i}
-                          className="py-2 px-4 align-top text-gray-800 text-xs whitespace-pre-wrap break-words max-w-xs"
-                        >
-                          {String(value)}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
+                  {(() => {
+                    const filtered = getFilteredData();
+
+                    if (reportType === 'bookings') {
+                      return filtered.map((row, index) => {
+                        const hostName =
+                          row.hostName ||
+                          row.hostDisplayName ||
+                          row.hostEmail ||
+                          row.hostId ||
+                          'N/A';
+                        const listingName = row.listingTitle || row.listingName || 'N/A';
+                        const guestsCount =
+                          row.guests ||
+                          row.guestCount ||
+                          row.numberOfGuests ||
+                          row.guestsCount ||
+                          '';
+                        const guestName =
+                          row.guestName ||
+                          row.guestFullName ||
+                          row.guestEmail ||
+                          row.guestId ||
+                          'N/A';
+                        const amount =
+                          typeof row.totalPrice === 'number'
+                            ? `₱${row.totalPrice.toLocaleString()}`
+                            : '₱0';
+
+                        return (
+                          <tr key={index} className="border-b hover:bg-gray-50/80">
+                            <td className="py-2 px-4 text-xs text-gray-800">{hostName}</td>
+                            <td className="py-2 px-4 text-xs text-gray-800">{listingName}</td>
+                            <td className="py-2 px-4 text-xs text-gray-800">{guestsCount}</td>
+                            <td className="py-2 px-4 text-xs text-gray-800">{guestName}</td>
+                            <td className="py-2 px-4 text-xs text-gray-800">{amount}</td>
+                          </tr>
+                        );
+                      });
+                    }
+
+                    if (reportType === 'earnings') {
+                      return filtered.map((row, index) => {
+                        const hostDisplay =
+                          row.hostName ||
+                          row.hostDisplayName ||
+                          row.hostEmail ||
+                          row.id ||
+                          'N/A';
+                        const earningsValue = typeof row.totalEarnings === 'number' ? row.totalEarnings : 0;
+                        const payoutValue = row.lastPayoutAt;
+                        const payout =
+                          payoutValue && payoutValue.toDate && typeof payoutValue.toDate === 'function'
+                            ? payoutValue.toDate().toLocaleString()
+                            : '—';
+
+                        return (
+                          <tr key={index} className="border-b hover:bg-gray-50/80">
+                            <td className="py-2 px-4 text-xs text-gray-800">{hostDisplay}</td>
+                            <td className="py-2 px-4 text-xs text-gray-800">₱{earningsValue.toLocaleString()}</td>
+                            <td className="py-2 px-4 text-xs text-gray-800">{payout}</td>
+                          </tr>
+                        );
+                      });
+                    }
+
+                    if (reportType === 'reviews') {
+                      return filtered.map((row, index) => {
+                        const hostDisplay =
+                          row.hostName ||
+                          row.hostDisplayName ||
+                          row.hostEmail ||
+                          row.hostId ||
+                          'N/A';
+                        const guestDisplay =
+                          row.guestName ||
+                          row.guestFullName ||
+                          row.guestEmail ||
+                          row.guestId ||
+                          'N/A';
+                        const createdVal = row.createdAt;
+                        const created =
+                          createdVal && createdVal.toDate && typeof createdVal.toDate === 'function'
+                            ? createdVal.toDate().toLocaleString()
+                            : '—';
+
+                        return (
+                          <tr key={index} className="border-b hover:bg-gray-50/80">
+                            <td className="py-2 px-4 text-xs text-gray-800">{row.listingTitle || row.listingName || 'N/A'}</td>
+                            <td className="py-2 px-4 text-xs text-gray-800">{hostDisplay}</td>
+                            <td className="py-2 px-4 text-xs text-gray-800">{guestDisplay}</td>
+                            <td className="py-2 px-4 text-xs text-gray-800">{row.rating ?? ''}</td>
+                            <td className="py-2 px-4 text-xs text-gray-800 whitespace-pre-wrap break-words max-w-xs">
+                              {row.comment ? String(row.comment) : ''}
+                            </td>
+                            <td className="py-2 px-4 text-xs text-gray-800">{created}</td>
+                          </tr>
+                        );
+                      });
+                    }
+
+                    // Hosts and any other reports: fallback to generic key/value rendering
+                    return filtered.map((row, index) => (
+                      <tr key={index} className="border-b hover:bg-gray-50/80">
+                        {Object.values(row).map((value, i) => (
+                          <td
+                            // eslint-disable-next-line react/no-array-index-key
+                            key={i}
+                            className="py-2 px-4 align-top text-gray-800 text-xs whitespace-pre-wrap break-words max-w-xs"
+                          >
+                            {String(value)}
+                          </td>
+                        ))}
+                      </tr>
+                    ));
+                  })()}
                 </tbody>
               </table>
             </div>
