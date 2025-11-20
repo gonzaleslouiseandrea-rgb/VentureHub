@@ -19,6 +19,9 @@ export default function HostPlanPage() {
   const [success, setSuccess] = useState('');
   const [currentPlan, setCurrentPlan] = useState(null);
   const [selectedPlan, setSelectedPlan] = useState('basic');
+  const [planInclusions, setPlanInclusions] = useState([]);
+  const [loadingInclusions, setLoadingInclusions] = useState(true);
+  const [showAllInclusions, setShowAllInclusions] = useState(false);
 
   useEffect(() => {
     const loadHost = async () => {
@@ -48,6 +51,36 @@ export default function HostPlanPage() {
 
     loadHost();
   }, [user]);
+
+  useEffect(() => {
+    const loadPlanInclusions = async () => {
+      try {
+        setLoadingInclusions(true);
+        const ref = doc(db, 'adminSettings', 'policies');
+        const snap = await getDoc(ref);
+        if (!snap.exists()) {
+          setPlanInclusions([]);
+          return;
+        }
+
+        const data = snap.data();
+        const raw = typeof data.subscriptionInclusions === 'string' ? data.subscriptionInclusions : '';
+        const lines = raw
+          .split('\n')
+          .map((line) => line.trim())
+          .filter((line) => line.length > 0);
+        setPlanInclusions(lines);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('Error loading subscription inclusions from admin policies', err);
+        setPlanInclusions([]);
+      } finally {
+        setLoadingInclusions(false);
+      }
+    };
+
+    loadPlanInclusions();
+  }, []);
 
   const handlePlanChange = (event) => {
     setSelectedPlan(event.target.value);
@@ -178,6 +211,43 @@ export default function HostPlanPage() {
                   />
                 ))}
               </RadioGroup>
+            </Box>
+
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+                What&apos;s included in subscription plans
+              </Typography>
+              {loadingInclusions ? (
+                <Typography variant="caption" sx={{ color: '#6b7280' }}>
+                  Loading benefits...
+                </Typography>
+              ) : planInclusions.length === 0 ? (
+                <Typography variant="caption" sx={{ color: '#6b7280' }}>
+                  Subscription benefits are not configured yet.
+                </Typography>
+              ) : (
+                <>
+                  <Box component="ul" sx={{ pl: 2, m: 0 }}>
+                    {(showAllInclusions ? planInclusions : planInclusions.slice(0, 3)).map((item) => (
+                      <li key={item}>
+                        <Typography variant="caption" sx={{ color: '#4b5563' }}>
+                          {item}
+                        </Typography>
+                      </li>
+                    ))}
+                  </Box>
+                  {planInclusions.length > 3 && (
+                    <Button
+                      size="small"
+                      variant="text"
+                      onClick={() => setShowAllInclusions((prev) => !prev)}
+                      sx={{ mt: 0.5, textTransform: 'none', fontSize: 12, px: 0 }}
+                    >
+                      {showAllInclusions ? 'Hide full benefits' : 'View full benefits'}
+                    </Button>
+                  )}
+                </>
+              )}
             </Box>
 
             <Box sx={{ mb: 2 }}>

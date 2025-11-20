@@ -12,6 +12,7 @@ export default function HostBookingsPage() {
   const [updatingId, setUpdatingId] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [wishlistByBooking, setWishlistByBooking] = useState({});
+  const [reviewsByListing, setReviewsByListing] = useState({});
 
   useEffect(() => {
     const fetchBookings = async () => {
@@ -81,6 +82,73 @@ export default function HostBookingsPage() {
     };
 
     fetchWishlistSuggestions();
+  }, [user]);
+
+  useEffect(() => {
+    const fetchReviewsForHostListings = async () => {
+      if (!user) {
+        setReviewsByListing({});
+        return;
+      }
+
+      try {
+        const reviewsRef = collection(db, 'reviews');
+        const qReviews = query(reviewsRef, where('hostId', '==', user.uid));
+        const snap = await getDocs(qReviews);
+
+        const temp = {};
+        snap.forEach((docSnap) => {
+          const data = docSnap.data();
+          const listingId = data.listingId;
+          if (!listingId) return;
+
+          if (!temp[listingId]) {
+            temp[listingId] = {
+              sum: 0,
+              count: 0,
+              reviews: [],
+            };
+          }
+
+          if (typeof data.rating === 'number') {
+            temp[listingId].sum += data.rating;
+            temp[listingId].count += 1;
+          }
+
+          temp[listingId].reviews.push({ id: docSnap.id, ...data });
+        });
+
+        const map = {};
+        Object.keys(temp).forEach((listingId) => {
+          const bucket = temp[listingId];
+          const { sum, count } = bucket;
+          const avg = count ? sum / count : null;
+
+          bucket.reviews.sort((a, b) => {
+            const aDate = a.createdAt?.toDate ? a.createdAt.toDate() : null;
+            const bDate = b.createdAt?.toDate ? b.createdAt.toDate() : null;
+            if (!aDate && !bDate) return 0;
+            if (!aDate) return 1;
+            if (!bDate) return -1;
+            return bDate - aDate;
+          });
+
+          map[listingId] = {
+            avg,
+            count,
+            reviews: bucket.reviews,
+          };
+        });
+
+        setReviewsByListing(map);
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('Error loading reviews for host listings', err);
+        setReviewsByListing({});
+      }
+    };
+
+    fetchReviewsForHostListings();
   }, [user]);
 
   const awardHostPoints = async (hostId, points, reason, metadata = {}) => {
@@ -414,6 +482,53 @@ export default function HostBookingsPage() {
                         <Typography variant="body2">
                           Total: ₱{booking.totalPrice.toFixed(2)}
                         </Typography>
+                      )}
+
+                      {booking.listing.id && reviewsByListing[booking.listing.id] && (
+                        (() => {
+                          const stats = reviewsByListing[booking.listing.id];
+                          if (!stats || !stats.count || !stats.avg) return null;
+
+                          const latest = stats.reviews && stats.reviews.length > 0 ? stats.reviews[0] : null;
+                          const createdAt = latest?.createdAt?.toDate ? latest.createdAt.toDate() : null;
+
+                          return (
+                            <Box
+                              sx={{
+                                mt: 1.5,
+                                p: 1.25,
+                                borderRadius: 1,
+                                bgcolor: 'rgba(255, 211, 77, 0.08)',
+                                border: '1px solid rgba(255, 193, 7, 0.5)',
+                              }}
+                            >
+                              <Typography variant="caption" sx={{ fontWeight: 600 }} color="text.secondary">
+                                Guest reviews for this listing
+                              </Typography>
+                              <Typography variant="body2" sx={{ mt: 0.5 }}>
+                                ⭐ {stats.avg.toFixed(1)} / 5 · {stats.count} review{stats.count !== 1 ? 's' : ''}
+                              </Typography>
+                              {latest && (
+                                <Typography variant="body2" sx={{ mt: 0.5 }} color="text.secondary">
+                                  “
+                                  {latest.comment && latest.comment.length > 120
+                                    ? `${latest.comment.slice(0, 117)}...`
+                                    : latest.comment || 'No comment provided.'}
+                                  ”
+                                  {createdAt && (
+                                    <Typography
+                                      component="span"
+                                      variant="caption"
+                                      sx={{ ml: 0.75, color: 'text.disabled' }}
+                                    >
+                                      {createdAt.toLocaleDateString()}
+                                    </Typography>
+                                  )}
+                                </Typography>
+                              )}
+                            </Box>
+                          );
+                        })()
                       )}
 
                       {wishlistByBooking[booking.id] && wishlistByBooking[booking.id].length > 0 && (

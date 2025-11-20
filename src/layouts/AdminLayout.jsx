@@ -20,6 +20,15 @@ export default function AdminLayout() {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
+  const [kpis, setKpis] = useState({
+    totalUsers: 0,
+    totalHosts: 0,
+    totalListings: 0,
+    totalBookings: 0,
+    pendingRefunds: 0,
+    pendingPayouts: 0,
+  });
+  const [loadingKpis, setLoadingKpis] = useState(true);
 
   const navItems = [
     { label: 'Dashboard', path: '/admin/dashboard' },
@@ -93,6 +102,71 @@ export default function AdminLayout() {
 
     fetchNotifications();
   }, [user]);
+
+  useEffect(() => {
+    const fetchKpis = async () => {
+      try {
+        setLoadingKpis(true);
+
+        // Users & hosts
+        const usersRef = collection(db, 'users');
+        const usersSnap = await getDocs(usersRef);
+        let totalUsers = 0;
+        let totalHosts = 0;
+        usersSnap.forEach((docSnap) => {
+          totalUsers += 1;
+          const data = docSnap.data();
+          if (data.role === 'host') totalHosts += 1;
+        });
+
+        // Listings
+        const listingsRef = collection(db, 'listings');
+        const listingsSnap = await getDocs(listingsRef);
+        const totalListings = listingsSnap.size;
+
+        // Bookings
+        const bookingsRef = collection(db, 'bookings');
+        const bookingsSnap = await getDocs(bookingsRef);
+        const totalBookings = bookingsSnap.size;
+
+        // Pending refunds
+        const refundsRef = collection(db, 'refunds');
+        const refundsQuery = query(refundsRef, where('status', '==', 'pending'));
+        const refundsSnap = await getDocs(refundsQuery);
+        const pendingRefunds = refundsSnap.size;
+
+        // Pending payouts
+        const paymentsRef = collection(db, 'payments');
+        const paymentsQuery = query(paymentsRef, where('status', '==', 'pending'));
+        const paymentsSnap = await getDocs(paymentsQuery);
+        const pendingPayouts = paymentsSnap.size;
+
+        setKpis({
+          totalUsers,
+          totalHosts,
+          totalListings,
+          totalBookings,
+          pendingRefunds,
+          pendingPayouts,
+        });
+      } catch (err) {
+        // eslint-disable-next-line no-console
+        console.error('Error loading admin KPI summary', err);
+        setKpis({
+          totalUsers: 0,
+          totalHosts: 0,
+          totalListings: 0,
+          totalBookings: 0,
+          pendingRefunds: 0,
+          pendingPayouts: 0,
+        });
+      } finally {
+        setLoadingKpis(false);
+      }
+    };
+
+    fetchKpis();
+  }, []);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', bgcolor: '#f5f5f5' }}>
@@ -308,6 +382,64 @@ export default function AdminLayout() {
       </AppBar>
       <Box component="main" sx={{ flexGrow: 1, mt: 8, py: 3 }}>
         <Box sx={{ maxWidth: 1200, mx: 'auto', px: { xs: 2, md: 3 } }}>
+          <Box
+            sx={{
+              display: 'grid',
+              gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(6, minmax(0, 1fr))' },
+              gap: 1.5,
+              mb: 3,
+            }}
+          >
+            <Paper elevation={0} sx={{ p: 1.5, borderRadius: 2, bgcolor: '#ecfdf3', border: '1px solid #bbf7d0' }}>
+              <Typography variant="caption" sx={{ color: '#166534', fontWeight: 600 }}>
+                Total users
+              </Typography>
+              <Typography variant="h6" sx={{ mt: 0.5, fontWeight: 700 }}>
+                {loadingKpis ? '—' : kpis.totalUsers}
+              </Typography>
+            </Paper>
+            <Paper elevation={0} sx={{ p: 1.5, borderRadius: 2, bgcolor: '#eff6ff', border: '1px solid #bfdbfe' }}>
+              <Typography variant="caption" sx={{ color: '#1d4ed8', fontWeight: 600 }}>
+                Hosts
+              </Typography>
+              <Typography variant="h6" sx={{ mt: 0.5, fontWeight: 700 }}>
+                {loadingKpis ? '—' : kpis.totalHosts}
+              </Typography>
+            </Paper>
+            <Paper elevation={0} sx={{ p: 1.5, borderRadius: 2, bgcolor: '#fefce8', border: '1px solid #fef08a' }}>
+              <Typography variant="caption" sx={{ color: '#854d0e', fontWeight: 600 }}>
+                Listings
+              </Typography>
+              <Typography variant="h6" sx={{ mt: 0.5, fontWeight: 700 }}>
+                {loadingKpis ? '—' : kpis.totalListings}
+              </Typography>
+            </Paper>
+            <Paper elevation={0} sx={{ p: 1.5, borderRadius: 2, bgcolor: '#eef2ff', border: '1px solid #c7d2fe' }}>
+              <Typography variant="caption" sx={{ color: '#4c1d95', fontWeight: 600 }}>
+                Bookings
+              </Typography>
+              <Typography variant="h6" sx={{ mt: 0.5, fontWeight: 700 }}>
+                {loadingKpis ? '—' : kpis.totalBookings}
+              </Typography>
+            </Paper>
+            <Paper elevation={0} sx={{ p: 1.5, borderRadius: 2, bgcolor: '#fef2f2', border: '1px solid #fecaca' }}>
+              <Typography variant="caption" sx={{ color: '#b91c1c', fontWeight: 600 }}>
+                Pending refunds
+              </Typography>
+              <Typography variant="h6" sx={{ mt: 0.5, fontWeight: 700 }}>
+                {loadingKpis ? '—' : kpis.pendingRefunds}
+              </Typography>
+            </Paper>
+            <Paper elevation={0} sx={{ p: 1.5, borderRadius: 2, bgcolor: '#effdf5', border: '1px solid #bbf7d0' }}>
+              <Typography variant="caption" sx={{ color: '#166534', fontWeight: 600 }}>
+                Pending payouts
+              </Typography>
+              <Typography variant="h6" sx={{ mt: 0.5, fontWeight: 700 }}>
+                {loadingKpis ? '—' : kpis.pendingPayouts}
+              </Typography>
+            </Paper>
+          </Box>
+
           <Outlet />
         </Box>
       </Box>

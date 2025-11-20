@@ -566,6 +566,26 @@ export default function GuestAccountPage() {
     loadReviews();
   }, [user]);
 
+  const reviewsByListingId = useMemo(() => {
+    const map = {};
+    reviews.forEach((r) => {
+      if (!r.listingId) return;
+      if (!map[r.listingId]) map[r.listingId] = [];
+      map[r.listingId].push(r);
+    });
+    Object.keys(map).forEach((key) => {
+      map[key].sort((a, b) => {
+        const aDate = a.createdAt?.toDate ? a.createdAt.toDate() : null;
+        const bDate = b.createdAt?.toDate ? b.createdAt.toDate() : null;
+        if (!aDate && !bDate) return 0;
+        if (!aDate) return 1;
+        if (!bDate) return -1;
+        return bDate - aDate;
+      });
+    });
+    return map;
+  }, [reviews]);
+
   const now = new Date();
 
   const upcomingBookings = bookings.filter((booking) => {
@@ -1486,6 +1506,65 @@ export default function GuestAccountPage() {
                                     >
                                       Tell host what you want to see more of
                                     </button>
+                                    {(() => {
+                                      const listingId = booking.listing?.id || booking.listingId;
+                                      const listingReviews = listingId ? reviewsByListingId[listingId] || [] : [];
+                                      const latestReview = listingReviews[0] || null;
+                                      if (latestReview) {
+                                        const createdAt = latestReview.createdAt?.toDate
+                                          ? latestReview.createdAt.toDate()
+                                          : null;
+                                        return (
+                                          <div className="mt-3 text-xs text-gray-700 border-t border-gray-200 pt-2">
+                                            <div className="flex items-center gap-2 mb-1">
+                                              <span className="font-semibold text-gray-900">Your review:</span>
+                                              <span className="text-yellow-400">
+                                                {'★'.repeat(Number(latestReview.rating) || 0)}
+                                              </span>
+                                              <span className="text-gray-500">
+                                                {(Number(latestReview.rating) || 0).toFixed(1)} / 5
+                                              </span>
+                                              {createdAt && (
+                                                <span className="text-[10px] text-gray-400">
+                                                  {createdAt.toLocaleDateString()}
+                                                </span>
+                                              )}
+                                            </div>
+                                            {latestReview.comment && (
+                                              <p className="text-gray-600 text-[11px]">
+                                                {latestReview.comment.length > 160
+                                                  ? `${latestReview.comment.slice(0, 157)}...`
+                                                  : latestReview.comment}
+                                              </p>
+                                            )}
+                                            <button
+                                              type="button"
+                                              onClick={() => setTab('reviews')}
+                                              className="mt-1 text-[11px] text-green-700 font-medium hover:underline"
+                                            >
+                                              View all your reviews
+                                            </button>
+                                          </div>
+                                        );
+                                      }
+
+                                      if (booking.status !== 'confirmed' && booking.status !== 'accepted') {
+                                        return null;
+                                      }
+
+                                      return (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setSelectedBookingForReview(booking);
+                                            setReviewModalOpen(true);
+                                          }}
+                                          className="mt-2 text-xs px-3 py-1 border border-yellow-300 rounded-full text-yellow-800 hover:bg-yellow-50"
+                                        >
+                                          Write a review for this stay
+                                        </button>
+                                      );
+                                    })()}
                                   </div>
                                 </div>
                               ))}
