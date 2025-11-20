@@ -1548,10 +1548,6 @@ export default function GuestAccountPage() {
                                         );
                                       }
 
-                                      if (booking.status !== 'confirmed' && booking.status !== 'accepted') {
-                                        return null;
-                                      }
-
                                       return (
                                         <button
                                           type="button"
