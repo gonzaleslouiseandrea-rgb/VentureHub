@@ -86,7 +86,14 @@ export default function AdminAnalyticsPage() {
     topHosts = [...hostEarnings]
       .map((h) => ({
         id: h.id,
-        hostName: h.hostName || h.displayName || h.id,
+        // Prefer human-friendly identifiers; only show raw IDs as a last resort
+        hostName:
+          h.hostName ||
+          h.displayName ||
+          h.hostEmail ||
+          h.email ||
+          h.hostId ||
+          h.id,
         totalEarnings: typeof h.totalEarnings === 'number' ? h.totalEarnings : 0,
       }))
       .sort((a, b) => b.totalEarnings - a.totalEarnings)

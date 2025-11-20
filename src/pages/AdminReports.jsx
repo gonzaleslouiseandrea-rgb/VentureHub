@@ -21,9 +21,67 @@ export default function AdminReportsPage() {
       if (reportType === 'bookings') {
         const ref = collection(db, 'bookings');
         const snap = await getDocs(ref);
-        snap.forEach((docSnap) => {
-          data.push({ id: docSnap.id, ...docSnap.data() });
+
+        // Preload hosts and users so we can resolve names instead of showing raw IDs
+        const hostsRef = collection(db, 'hosts');
+        const hostsSnap = await getDocs(hostsRef);
+        const hostById = {};
+        hostsSnap.forEach((docSnap) => {
+          const h = docSnap.data();
+          hostById[docSnap.id] = h;
         });
+
+        const usersRef = collection(db, 'users');
+        const usersSnap = await getDocs(usersRef);
+        const userById = {};
+        usersSnap.forEach((docSnap) => {
+          const u = docSnap.data();
+          userById[docSnap.id] = u;
+        });
+
+        const rows = [];
+        snap.forEach((docSnap) => {
+          const raw = docSnap.data();
+
+          const hostSource =
+            (raw.hostId && hostById[raw.hostId]) ||
+            (raw.host && hostById[raw.host.id]) ||
+            null;
+
+          const hostDisplay = hostSource
+            ? hostSource.displayName || hostSource.hostName || hostSource.name || hostSource.email
+            : null;
+
+          const guestSource =
+            (raw.guestId && userById[raw.guestId]) ||
+            (raw.guest && userById[raw.guest.id]) ||
+            null;
+
+          const guestDisplay = guestSource
+            ? guestSource.displayName || guestSource.fullName || guestSource.name || guestSource.email
+            : null;
+
+          rows.push({
+            id: docSnap.id,
+            ...raw,
+            hostName:
+              hostDisplay ||
+              raw.hostName ||
+              raw.hostDisplayName ||
+              raw.hostEmail ||
+              raw.hostId ||
+              '',
+            guestName:
+              guestDisplay ||
+              raw.guestName ||
+              raw.guestFullName ||
+              raw.guestEmail ||
+              raw.guestId ||
+              '',
+          });
+        });
+
+        data = rows;
       } else if (reportType === 'earnings') {
         const ref = collection(db, 'hostEarnings');
         const snap = await getDocs(ref);
